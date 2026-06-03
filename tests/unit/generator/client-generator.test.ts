@@ -491,15 +491,12 @@ describe('ClientGenerator', () => {
         it('should have authentication property of AuthAPI type', () => {
             expect(output).toContain('authentication: AuthAPI')
         })
-        it('should create CollectionAPI instances for collection types (items, categories, users)', () => {
+        it('should create CollectionAPI instances for collection types (items, categories)', () => {
             expect(output).toContain(
                 "this.items = new CollectionAPI('items', this.config)",
             )
             expect(output).toContain(
                 "this.categories = new CollectionAPI('categories', this.config)",
-            )
-            expect(output).toContain(
-                "this.users = new CollectionAPI('users', this.config)",
             )
         })
         it('should create SingleTypeAPI instance for single types (homepage)', () => {
@@ -512,7 +509,7 @@ describe('ClientGenerator', () => {
                 'items: CollectionAPI<Item, ItemInput, ItemFilters, ItemPopulateParam>',
             )
             expect(output).toContain(
-                'users: CollectionAPI<User, UserInput, UserFilters, UserPopulateParam>',
+                'users: UsersPermissionsUserAPI<User, UserInput, UserFilters, UserPopulateParam>',
             )
             expect(output).toContain(
                 'homepage: SingleTypeAPI<Homepage, HomepageInput, HomepageFilters, HomepagePopulateParam>',
@@ -828,6 +825,67 @@ describe('ClientGenerator', () => {
             const uploadClassDeclarations =
                 result.match(/^class UploadAPI extends BaseAPI/gm) ?? []
             expect(uploadClassDeclarations.length).toBe(1)
+        })
+    })
+
+    describe('Users & Permissions API', () => {
+        const upSection = output.slice(
+            output.indexOf('class UsersPermissionsUserAPI<'),
+            output.indexOf('class AuthAPI'),
+        )
+        const collectionSection = output.slice(
+            output.indexOf('class CollectionAPI<'),
+            output.indexOf('class SingleTypeAPI<'),
+        )
+
+        it('generates a UsersPermissionsUserAPI class extending CollectionAPI', () => {
+            expect(output).toContain('class UsersPermissionsUserAPI<')
+            expect(upSection).toContain('extends CollectionAPI<')
+        })
+
+        it('wires the users content type to UsersPermissionsUserAPI (declaration + init)', () => {
+            expect(output).toMatch(/\busers: UsersPermissionsUserAPI</)
+            expect(output).toContain(
+                "this.users = new UsersPermissionsUserAPI('users', this.config)",
+            )
+        })
+
+        it('overrides wrapBody to send a flat body (no { data } envelope)', () => {
+            expect(upSection).toContain('protected wrapBody(data: any): any')
+            expect(upSection).toMatch(
+                /wrapBody\(data: any\): any \{\s*return data\s*\}/,
+            )
+        })
+
+        it('overrides unwrap to return the flat response (no .data)', () => {
+            expect(upSection).toContain('protected unwrap(response: any): any')
+            expect(upSection).toMatch(
+                /unwrap\(response: any\): any \{\s*return response\s*\}/,
+            )
+        })
+
+        it('CollectionAPI keeps the { data } envelope by default (no regression)', () => {
+            expect(collectionSection).toMatch(
+                /wrapBody\(data: any\): any \{\s*return \{ data \}\s*\}/,
+            )
+            expect(collectionSection).toMatch(
+                /unwrap\(response: any\): any \{\s*return response\?\.data\s*\}/,
+            )
+        })
+
+        it('CollectionAPI mutation methods route through wrapBody/unwrap', () => {
+            expect(collectionSection).toContain(
+                'JSON.stringify(this.wrapBody(data))',
+            )
+            expect(collectionSection).toContain('return this.unwrap(response)')
+            expect(collectionSection).not.toContain('JSON.stringify({ data })')
+        })
+
+        it('regular collections still use CollectionAPI (no regression)', () => {
+            expect(output).toMatch(/\bitems: CollectionAPI</)
+            expect(output).toContain(
+                "this.items = new CollectionAPI('items', this.config)",
+            )
         })
     })
 })

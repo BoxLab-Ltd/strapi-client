@@ -105,6 +105,9 @@ export class ClientGenerator {
         // SingleTypeAPI class (static block)
         sf.addStatements(this.generateSingleTypeAPI())
 
+        // UsersPermissionsUserAPI class (flat envelope for /api/users)
+        sf.addStatements(this.generateUsersPermissionsUserAPI())
+
         // Custom API classes (for collections with custom routes)
         if (parsedRoutes) {
             sf.addStatements(
@@ -885,6 +888,17 @@ class CollectionAPI<
     super(config)
   }
 
+  // Envelope hooks — standard content types use Strapi's { data } wrapper.
+  // Subclasses (e.g. the users-permissions endpoint) override these to send
+  // and receive a flat payload instead.
+  protected wrapBody(data: any): any {
+    return { data }
+  }
+
+  protected unwrap(response: any): any {
+    return response?.data
+  }
+
   // Overload: with populate object → populated return type
   find<const TPopulate extends TPopulateKeys, const TFields extends Exclude<keyof TBase & string, '__typename'> = never>(
     params: { populate: TPopulate } & QueryParams<TBase, TFilters, TPopulate, TFields>,
@@ -910,7 +924,7 @@ class CollectionAPI<
     const query = this.buildQueryString(params)
     const url = \`\${this.config.baseURL}/api/\${this.endpoint}\${query}\`
     const response = await this.request<StrapiResponse<any[]>>(url, {}, nextOptions)
-    return response.data
+    return this.unwrap(response)
   }
 
   // Overload: with populate object → populated return type
@@ -969,14 +983,14 @@ class CollectionAPI<
     const query = this.buildQueryString(params)
     const url = \`\${this.config.baseURL}/api/\${this.endpoint}/\${documentId}\${query}\`
     const response = await this.request<StrapiResponse<any>>(url, {}, nextOptions)
-    return response.data
+    return this.unwrap(response)
   }
 
   async create(data: TInput | FormData, nextOptions?: NextOptions): Promise<TBase> {
-    // If data is FormData, use it directly; otherwise wrap in { data } and JSON stringify
+    // FormData is sent as-is; everything else goes through the envelope hook
     const body = data instanceof FormData
       ? data
-      : JSON.stringify({ data })
+      : JSON.stringify(this.wrapBody(data))
 
     const url = \`\${this.config.baseURL}/api/\${this.endpoint}\`
     const response = await this.request<StrapiResponse<TBase>>(
@@ -987,14 +1001,14 @@ class CollectionAPI<
       },
       nextOptions
     )
-    return response.data
+    return this.unwrap(response)
   }
 
   async update(documentId: string, data: TInput | FormData, nextOptions?: NextOptions): Promise<TBase> {
-    // If data is FormData, use it directly; otherwise wrap in { data } and JSON stringify
+    // FormData is sent as-is; everything else goes through the envelope hook
     const body = data instanceof FormData
       ? data
-      : JSON.stringify({ data })
+      : JSON.stringify(this.wrapBody(data))
 
     const url = \`\${this.config.baseURL}/api/\${this.endpoint}/\${documentId}\`
     const response = await this.request<StrapiResponse<TBase>>(
@@ -1005,7 +1019,7 @@ class CollectionAPI<
       },
       nextOptions
     )
-    return response.data
+    return this.unwrap(response)
   }
 
   async delete(documentId: string, nextOptions?: NextOptions): Promise<TBase | null> {
@@ -1017,7 +1031,7 @@ class CollectionAPI<
       },
       nextOptions
     )
-    return response?.data ?? null
+    return this.unwrap(response) ?? null
   }
 }`
     }
@@ -1081,6 +1095,25 @@ class SingleTypeAPI<
       nextOptions
     )
     return response.data
+  }
+}`
+    }
+
+    private generateUsersPermissionsUserAPI(): string {
+        return `// Users & Permissions endpoint (/api/users) — sends and receives a flat
+// payload, unlike standard content types which use the { data } envelope
+class UsersPermissionsUserAPI<
+  TBase,
+  TInput = Partial<TBase>,
+  TFilters = Record<string, any>,
+  TPopulateKeys extends Record<string, any> = Record<string, any>
+> extends CollectionAPI<TBase, TInput, TFilters, TPopulateKeys> {
+  protected wrapBody(data: any): any {
+    return data
+  }
+
+  protected unwrap(response: any): any {
+    return response
   }
 }`
     }
@@ -1170,6 +1203,24 @@ ${customMethods}
     }
 
     /**
+     * Pick the API class wired for a content type. The users-permissions user
+     * is special-cased to the flat-envelope class; everything else uses its
+     * custom-route class, SingleTypeAPI, or CollectionAPI.
+     */
+    private resolveContentTypeApiClass(
+        contentType: ContentType,
+        hasCustomRoutes: boolean,
+    ): string {
+        if (contentType.name === 'PluginUsersPermissionsUser') {
+            return 'UsersPermissionsUserAPI'
+        }
+        if (hasCustomRoutes) {
+            return `${contentType.cleanName}API`
+        }
+        return contentType.kind === 'single' ? 'SingleTypeAPI' : 'CollectionAPI'
+    }
+
+    /**
      * Compute which entries of `PLUGIN_REGISTRY` should be active for the
      * current generation. An entry is skipped if the user has a custom
      * standalone controller that resolves to the same property name —
@@ -1214,11 +1265,10 @@ ${customMethods}
                     parsedRoutes?.byController.has(controllerName) &&
                     controllerName !== 'auth' &&
                     controllerName !== 'user'
-                const apiClass = hasCustomRoutes
-                    ? `${contentType.cleanName}API`
-                    : contentType.kind === 'single'
-                      ? 'SingleTypeAPI'
-                      : 'CollectionAPI'
+                const apiClass = this.resolveContentTypeApiClass(
+                    contentType,
+                    !!hasCustomRoutes,
+                )
                 const propName = toCamelCase(endpoint)
                 const typeParam = hasCustomRoutes
                     ? ''
@@ -1245,11 +1295,10 @@ ${customMethods}
                     parsedRoutes?.byController.has(controllerName) &&
                     controllerName !== 'auth' &&
                     controllerName !== 'user'
-                const apiClass = hasCustomRoutes
-                    ? `${contentType.cleanName}API`
-                    : contentType.kind === 'single'
-                      ? 'SingleTypeAPI'
-                      : 'CollectionAPI'
+                const apiClass = this.resolveContentTypeApiClass(
+                    contentType,
+                    !!hasCustomRoutes,
+                )
                 const propName = toCamelCase(endpoint)
 
                 // Determine final endpoint with plugin prefix
