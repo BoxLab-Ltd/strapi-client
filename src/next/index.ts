@@ -211,14 +211,18 @@ function runBuildGenerate(config: StrapiTypesConfig): void {
         args.push('--token', token)
     }
 
+    const stop = loading(silent, 'Generating types')
+    const start = Date.now()
     try {
-        const stop = loading(silent, 'Generating types')
-        const start = Date.now()
-        execFileSync('node', args, { stdio: 'ignore' })
+        execFileSync('node', args, { stdio: ['ignore', 'ignore', 'pipe'] })
         stop()
         ok(silent, `Types generated in ${dim(`${Date.now() - start}ms`)}`)
-    } catch {
-        fail('Failed to generate types, using existing if available')
+    } catch (error) {
+        stop()
+        const stderr = (error as { stderr?: Buffer }).stderr?.toString().trim()
+        fail(
+            `Failed to generate types, using existing if available${stderr ? `\n${stderr}` : ''}`,
+        )
     }
 }
 

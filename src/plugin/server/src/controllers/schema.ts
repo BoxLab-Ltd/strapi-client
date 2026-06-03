@@ -34,6 +34,7 @@ export interface StrapiInstance {
     service: (uid: string) => any
     log: {
         error: (message: string, error?: unknown) => void
+        warn?: (message: string, error?: unknown) => void
     }
 }
 
@@ -57,9 +58,16 @@ async function validateApiToken(
     try {
         const apiTokenService = strapi.service('admin::api-token')
         const accessKey = await apiTokenService.hash(token)
-        const storedToken = await apiTokenService.getBy({ accessKey })
+        const storedToken =
+            typeof apiTokenService.getByAccessKey === 'function'
+                ? await apiTokenService.getByAccessKey(accessKey)
+                : await apiTokenService.getBy({ accessKey })
         return !!storedToken
-    } catch {
+    } catch (error) {
+        strapi.log?.warn?.(
+            '[strapi-typed-client] token validation failed',
+            error,
+        )
         return false
     }
 }
