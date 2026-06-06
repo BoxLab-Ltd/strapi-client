@@ -49,8 +49,13 @@ export function transformSchema(extracted: ExtractedSchema): ParsedSchema {
     const contentTypes: ContentType[] = []
     const components: Component[] = []
 
+    // Sort by UID for a stable canonical order (Strapi registry order isn't
+    // guaranteed stable, which otherwise produces ordering-only diff noise)
+
     // Transform components first (they may be referenced by content types)
-    for (const [uid, strapiComponent] of Object.entries(extracted.components)) {
+    for (const [uid, strapiComponent] of Object.entries(
+        extracted.components,
+    ).sort(([a], [b]) => byUid(a, b))) {
         const component = transformComponent(uid, strapiComponent)
         components.push(component)
     }
@@ -58,12 +63,19 @@ export function transformSchema(extracted: ExtractedSchema): ParsedSchema {
     // Transform content types
     for (const [uid, strapiContentType] of Object.entries(
         extracted.contentTypes,
-    )) {
+    ).sort(([a], [b]) => byUid(a, b))) {
         const contentType = transformContentType(uid, strapiContentType)
         contentTypes.push(contentType)
     }
 
     return { contentTypes, components }
+}
+
+/**
+ * Deterministic, locale-independent UID comparator (codepoint order).
+ */
+function byUid(a: string, b: string): number {
+    return a < b ? -1 : a > b ? 1 : 0
 }
 
 /**

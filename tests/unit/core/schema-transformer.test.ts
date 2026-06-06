@@ -560,6 +560,89 @@ describe('Schema Transformer', () => {
             ).toBeUndefined()
         })
 
+        it('should emit content types and components in stable UID order regardless of input order', () => {
+            const ct = (
+                uid: string,
+                singularName: string,
+            ): StrapiContentType => ({
+                uid,
+                kind: 'collectionType',
+                collectionName: singularName,
+                info: {
+                    singularName,
+                    pluralName: `${singularName}s`,
+                    displayName: singularName,
+                },
+                attributes: { name: { type: 'string' } },
+            })
+            const comp = (uid: string): StrapiComponent => ({
+                uid,
+                category: uid.split('.')[0],
+                info: { displayName: uid },
+                attributes: { label: { type: 'string' } },
+            })
+
+            const result = transformSchema({
+                contentTypes: {
+                    'api::zebra.zebra': ct('api::zebra.zebra', 'zebra'),
+                    'api::apple.apple': ct('api::apple.apple', 'apple'),
+                    'api::mango.mango': ct('api::mango.mango', 'mango'),
+                },
+                components: {
+                    'shared.seo': comp('shared.seo'),
+                    'landing.hero': comp('landing.hero'),
+                    'blocks.text': comp('blocks.text'),
+                },
+            })
+
+            expect(result.contentTypes.map(c => c.cleanName)).toEqual([
+                'Apple',
+                'Mango',
+                'Zebra',
+            ])
+            expect(result.components.map(c => c.uid)).toEqual([
+                'blocks.text',
+                'landing.hero',
+                'shared.seo',
+            ])
+        })
+
+        it('should produce identical output order for shuffled input keys', () => {
+            const ct = (
+                uid: string,
+                singularName: string,
+            ): StrapiContentType => ({
+                uid,
+                kind: 'collectionType',
+                collectionName: singularName,
+                info: {
+                    singularName,
+                    pluralName: `${singularName}s`,
+                    displayName: singularName,
+                },
+                attributes: { name: { type: 'string' } },
+            })
+
+            const a = transformSchema({
+                contentTypes: {
+                    'api::beta.beta': ct('api::beta.beta', 'beta'),
+                    'api::alpha.alpha': ct('api::alpha.alpha', 'alpha'),
+                },
+                components: {},
+            })
+            const b = transformSchema({
+                contentTypes: {
+                    'api::alpha.alpha': ct('api::alpha.alpha', 'alpha'),
+                    'api::beta.beta': ct('api::beta.beta', 'beta'),
+                },
+                components: {},
+            })
+
+            expect(a.contentTypes.map(c => c.cleanName)).toEqual(
+                b.contentTypes.map(c => c.cleanName),
+            )
+        })
+
         it('should handle kebab-case names correctly', () => {
             const extracted: ExtractedSchema = {
                 contentTypes: {
