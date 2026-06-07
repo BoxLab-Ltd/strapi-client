@@ -90,32 +90,49 @@ See [Authentication](/advanced/authentication) for more details.
 
 ## Generate Types
 
-With Strapi running, use the CLI to fetch the schema and generate TypeScript types and a typed client:
-
-```bash
-npx strapi-types generate --url http://localhost:1337
-```
-
-This generates files directly into the installed package (`node_modules/strapi-typed-client/dist`) so you can import from `strapi-typed-client` immediately:
-
-| File         | Description                                                    |
-| ------------ | -------------------------------------------------------------- |
-| `types.d.ts` | TypeScript interfaces for all content types and components     |
-| `client.js`  | A typed `StrapiClient` class with methods for every collection |
-| `index.js`   | Re-exports everything from types and client                    |
-
-You can change the output directory with the `--output` flag:
+With Strapi running, generate the types and a typed client into your project, and commit the result:
 
 ```bash
 npx strapi-types generate --url http://localhost:1337 --output ./src/strapi
 ```
+
+This writes three files into `./src/strapi`:
+
+| File       | Description                                                    |
+| ---------- | -------------------------------------------------------------- |
+| `types.*`  | TypeScript interfaces for all content types and components     |
+| `client.*` | A typed `StrapiClient` class with methods for every collection |
+| `index.*`  | Re-exports everything from types and client                    |
+
+Add a path alias once so you can import them from anywhere in your app:
+
+```json
+// tsconfig.json
+{ "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }
+```
+
+```ts
+import { StrapiClient } from '@/strapi'
+```
+
+Committing the generated code keeps it through reinstalls and surfaces schema changes as reviewable diffs. The client is self-contained, so your app gains no runtime dependency on `strapi-typed-client`.
+
+`--format` defaults to compiled `.js` + `.d.ts` (no build step required). Pass `--format ts` to emit raw `.ts` for bundlers and monorepos that compile their own sources.
+
+::: tip Quick trial
+Omit `--output` to write into `node_modules` and import from the bare `'strapi-typed-client'`. Fine for a spike, but a reinstall wipes it — see [CLI](/guide/cli).
+:::
+
+::: warning Regenerate after upgrading
+The generated client records the `strapi-typed-client` version that produced it. After upgrading the package, run `generate` again so committed types pick up generator fixes — `strapi-types check` warns when they drift.
+:::
 
 ## Quick Usage
 
 Once types are generated, create a client and start making typed API calls:
 
 ```ts
-import { StrapiClient } from 'strapi-typed-client'
+import { StrapiClient } from '@/strapi'
 
 const strapi = new StrapiClient({
     baseURL: 'http://localhost:1337',
@@ -130,6 +147,10 @@ const articles = await strapi.articles.find({
 
 console.log(articles.data) // Article[]
 ```
+
+::: info Import paths in these docs
+Examples import from `@/strapi` — the directory you generated into. If you used the quick `node_modules` mode instead, import from the bare `'strapi-typed-client'`.
+:::
 
 ::: info
 The client uses the global `fetch` by default. In Next.js, this means you automatically get all of Next.js's fetch optimizations (caching, deduplication, revalidation). See the [Next.js integration guide](/guide/nextjs) for details.

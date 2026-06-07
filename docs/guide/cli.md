@@ -26,45 +26,46 @@ npx strapi-types generate --url http://localhost:1337
 **Examples:**
 
 ```bash
-# Basic generation
+# Generate into your source tree and commit it (recommended)
+npx strapi-types generate --url http://localhost:1337 --output ./src/strapi
+
+# Quick trial — write into node_modules (ephemeral)
 npx strapi-types generate --url http://localhost:1337
 
 # With authentication
 npx strapi-types generate --url http://localhost:1337 --token abc123
 
-# Custom output directory, silent mode
-npx strapi-types generate --url http://localhost:1337 --output ./src/api --silent
-
 # Force regeneration (ignore schema hash)
 npx strapi-types generate --url http://localhost:1337 --force
 
-# Emit raw TypeScript into your source tree (for monorepos)
-npx strapi-types generate --format ts --output ./src/strapi
+# Emit raw TypeScript instead of compiled .js + .d.ts
+npx strapi-types generate --output ./src/strapi --format ts
 ```
 
-::: tip `--format ts`
-Emits raw `.ts` sources instead of compiled `.js` + `.d.ts`. Useful when your package builds its own sources (Turborepo, Nx, pnpm workspaces). The output must live **outside** `node_modules` — the CLI will refuse to write `.ts` into the package dir. Your consumer `tsconfig.json` needs `moduleResolution: "bundler"` or `"nodenext"` so the `.js`-extension imports resolve to `.ts` source.
+::: warning `--output` default is ephemeral
+Without `--output`, files are written into `node_modules/strapi-typed-client/dist` — convenient (you import from the bare `'strapi-typed-client'`), but a reinstall wipes them and you'll need to regenerate. For durable, reviewable types, point `--output` at your source tree and commit the result.
+:::
+
+::: tip `--format js` vs `--format ts`
+`js` (default) emits compiled `.js` + `.d.ts` — runs anywhere, including plain JavaScript projects with no build step. `ts` emits raw `.ts` for bundlers and monorepos that compile their own sources (Turborepo, Nx, pnpm workspaces); it must live **outside** `node_modules`, and your `tsconfig.json` needs `moduleResolution: "bundler"` or `"nodenext"` so the `.js`-extension imports resolve to `.ts` source. Both can be committed.
 :::
 
 ### `check`
 
-Verifies that the CLI can connect to your Strapi instance and that the plugin is properly registered.
+Compares the schema hash baked into your generated client against the live Strapi schema, and reports whether your types are up to date. Useful in CI.
 
 ```bash
-npx strapi-types check --url http://localhost:1337
+npx strapi-types check --url http://localhost:1337 --output ./src/strapi
 ```
 
-This is useful for CI pipelines or debugging connection issues. It will:
+It will:
 
-1. Attempt to reach the schema endpoint
-2. Report whether the plugin is accessible
-3. Exit with code 0 on success, 1 on failure
+1. Exit `1` with a clear message if no generated client is found (run `generate` first)
+2. Warn if the generated client was produced by a different `strapi-typed-client` version than the one installed
+3. Fetch the remote schema hash and compare it to the local one
+4. Exit `0` when in sync, `1` when out of sync
 
-**Example:**
-
-```bash
-npx strapi-types check --url http://localhost:1337 --token abc123
-```
+Pass `--output` to point at the directory you generated into (defaults to `node_modules/strapi-typed-client/dist`).
 
 ### `watch`
 

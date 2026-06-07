@@ -186,7 +186,7 @@ The client throws two types of errors:
 - **`StrapiConnectionError`** — the request never reached the server (network down, DNS failure, timeout)
 
 ```ts
-import { StrapiError, StrapiConnectionError } from 'strapi-typed-client'
+import { StrapiError, StrapiConnectionError } from '@/strapi'
 
 try {
     const result = await strapi.articles.findOne('nonexistent-id')

@@ -644,7 +644,7 @@ The error message also includes a contextual hint for common HTTP status codes:
 Because `details` is typed as `unknown` on the class, narrow it via the `isStrapiErrorOf` type guard:
 
 ```ts
-import { isStrapiErrorOf } from 'strapi-typed-client'
+import { isStrapiErrorOf } from '@/strapi'
 
 try {
     await strapi.articles.create({ title: '' })
@@ -672,7 +672,7 @@ try {
 For "any Strapi error" without a specific name, use `isStrapiError`:
 
 ```ts
-import { isStrapiError } from 'strapi-typed-client'
+import { isStrapiError } from '@/strapi'
 
 try {
     /* ... */
@@ -747,7 +747,7 @@ The error message is specific to the failure type:
 | Other network error  | `Network error: {message}. Check your baseURL: {baseURL}`          |
 
 ```ts
-import { StrapiConnectionError } from 'strapi-typed-client'
+import { StrapiConnectionError } from '@/strapi'
 
 try {
     await strapi.articles.find()

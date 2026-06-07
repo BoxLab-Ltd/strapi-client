@@ -25,14 +25,18 @@ export default {
 
 ### 3. Generate types
 
+Generate into your source tree and commit the result:
+
 ```bash
-npx strapi-types generate --url http://localhost:1337
+npx strapi-types generate --url http://localhost:1337 --output ./src/strapi
 ```
+
+Committed types survive reinstalls and show up as reviewable diffs. (Omit `--output` for a quick trial that writes into `node_modules` instead — ephemeral, wiped on reinstall.)
 
 ### 4. Use
 
 ```typescript
-import { StrapiClient } from 'strapi-typed-client'
+import { StrapiClient } from '@/strapi'
 
 const strapi = new StrapiClient({
     baseURL: 'http://localhost:1337',
