@@ -6,8 +6,10 @@
 import { createApiClient } from '../utils/api-client.js'
 import {
     readLocalSchemaHash,
+    readLocalGeneratorVersion,
     getDefaultOutputDir,
 } from '../utils/file-writer.js'
+import { getGeneratorVersion } from '../../shared/version.js'
 
 export interface CheckOptions {
     url?: string
@@ -40,6 +42,24 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
                 remoteHash: null,
                 error: `No generated client found in ${outputDir}. Run 'strapi-types generate' first.`,
             }
+        }
+
+        // Warn (non-fatal) when committed types were produced by a different
+        // CLI version than the one installed — they may be missing newer
+        // generator fixes/features until regenerated.
+        const localVersion = readLocalGeneratorVersion(outputDir)
+        const cliVersion = getGeneratorVersion()
+        if (
+            !options.silent &&
+            localVersion &&
+            cliVersion &&
+            localVersion !== cliVersion
+        ) {
+            console.warn(
+                `Warning: generated client was produced by strapi-typed-client v${localVersion}, ` +
+                    `but the installed CLI is v${cliVersion}.\n` +
+                    `Run 'strapi-types generate' to refresh.`,
+            )
         }
 
         // Create API client

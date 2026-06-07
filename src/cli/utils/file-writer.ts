@@ -92,7 +92,7 @@ export function getDefaultOutputDir(): string {
     }
 }
 
-const SCHEMA_HASH_HEAD_BYTES = 300
+const HEADER_HEAD_BYTES = 512
 
 /**
  * Read the first N bytes of a file without loading the whole thing.
@@ -125,13 +125,30 @@ function readFileHead(filePath: string, bytes: number): string | null {
  * enough and avoids parsing the full client.
  */
 export function readLocalSchemaHash(outputDir: string): string | null {
+    return readLocalHeaderConst(outputDir, 'SCHEMA_HASH')
+}
+
+/**
+ * Read the GENERATOR_VERSION baked into the generated client at generation
+ * time. Used to detect when committed types drift from the installed CLI
+ * version. Returns null when not generated or the constant is absent (e.g.
+ * clients generated before version stamping was introduced).
+ */
+export function readLocalGeneratorVersion(outputDir: string): string | null {
+    return readLocalHeaderConst(outputDir, 'GENERATOR_VERSION')
+}
+
+/**
+ * Read a `export const <NAME> = '<value>'` baked into the generated client
+ * header. Both SCHEMA_HASH and GENERATOR_VERSION live in the first bytes of
+ * client.ts/client.js, so reading the head is enough.
+ */
+function readLocalHeaderConst(outputDir: string, name: string): string | null {
+    const re = new RegExp(`${name}\\s*=\\s*['"]([^'"]*)['"]`)
     for (const file of ['client.ts', 'client.js']) {
-        const head = readFileHead(
-            path.join(outputDir, file),
-            SCHEMA_HASH_HEAD_BYTES,
-        )
+        const head = readFileHead(path.join(outputDir, file), HEADER_HEAD_BYTES)
         if (!head) continue
-        const match = head.match(/SCHEMA_HASH\s*=\s*['"]([^'"]+)['"]/)
+        const match = head.match(re)
         if (match) return match[1]
     }
     return null

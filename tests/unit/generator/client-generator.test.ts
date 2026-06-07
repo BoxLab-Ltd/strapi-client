@@ -83,6 +83,25 @@ describe('ClientGenerator', () => {
     const generator = new ClientGenerator()
     const output = generator.generate(mockSchema)
 
+    describe('Header constants', () => {
+        it('bakes SCHEMA_HASH and GENERATOR_VERSION into the header', () => {
+            const out = new ClientGenerator().generate(
+                mockSchema,
+                undefined,
+                undefined,
+                'abc123',
+                '9.9.9',
+            )
+            expect(out).toContain('export const SCHEMA_HASH = "abc123"')
+            expect(out).toContain('export const GENERATOR_VERSION = "9.9.9"')
+        })
+
+        it('defaults header constants to empty strings', () => {
+            expect(output).toContain('export const SCHEMA_HASH = ""')
+            expect(output).toContain('export const GENERATOR_VERSION = ""')
+        })
+    })
+
     describe('Imports', () => {
         it('should import content types from types.js', () => {
             expect(output).toContain("from './types.js'")

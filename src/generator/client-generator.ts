@@ -57,6 +57,7 @@ export class ClientGenerator {
         endpoints?: ParsedEndpoint[],
         extraTypes?: ExtraControllerType[],
         schemaHash: string = '',
+        generatorVersion: string = '',
     ): string {
         const project = new Project({ useInMemoryFileSystem: true })
         const sf = project.createSourceFile('client.ts')
@@ -73,15 +74,17 @@ export class ClientGenerator {
             this.customApiGenerator.setCustomTypes(customTypes)
         }
 
-        // Header comments + baked SCHEMA_HASH. Kept at the top so CLI tooling
-        // can read it by slicing the first few hundred bytes of the file
-        // without parsing the rest (see readLocalSchemaHash).
+        // Header comments + baked SCHEMA_HASH / GENERATOR_VERSION. Kept at the
+        // top so CLI tooling can read them by slicing the first few hundred
+        // bytes of the file without parsing the rest (see readLocalSchemaHash /
+        // readLocalGeneratorVersion).
         sf.addStatements([
             '/* eslint-disable */',
             '// @ts-nocheck',
             '// Auto-generated Strapi API client',
             '// Do not edit manually',
             `export const SCHEMA_HASH = ${JSON.stringify(schemaHash)}`,
+            `export const GENERATOR_VERSION = ${JSON.stringify(generatorVersion)}`,
         ])
 
         // Imports

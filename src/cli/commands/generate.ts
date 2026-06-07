@@ -11,6 +11,7 @@ import {
 } from '../utils/file-writer.js'
 import { Generator } from '../../generator/index.js'
 import { transformSchema } from '../../core/schema-transformer.js'
+import { getGeneratorVersion } from '../../shared/version.js'
 
 export interface GenerateOptions {
     url?: string
@@ -19,6 +20,15 @@ export interface GenerateOptions {
     silent?: boolean
     force?: boolean
     format?: 'js' | 'ts'
+}
+
+/**
+ * Output that lands inside node_modules is ephemeral — a reinstall wipes it,
+ * so the types must be regenerated. Used to bar `--format ts` from it and to
+ * nudge `--format js` users toward a durable, committable output directory.
+ */
+function isInsideNodeModules(outputDir: string): boolean {
+    return path.resolve(outputDir).split(path.sep).includes('node_modules')
 }
 
 /**
@@ -31,14 +41,15 @@ function assertOutputDirForFormat(
     format: 'js' | 'ts',
 ): void {
     if (format !== 'ts') return
-    const normalized = path.resolve(outputDir)
-    if (normalized.split(path.sep).includes('node_modules')) {
+    if (isInsideNodeModules(outputDir)) {
         throw new Error(
             `--format ts cannot write into node_modules (${outputDir}). ` +
                 `Point --output at your source tree (e.g. ./src/strapi).`,
         )
     }
 }
+
+const dim = (s: string): string => `\x1b[2m${s}\x1b[0m`
 
 export interface GenerateResult {
     success: boolean
@@ -171,6 +182,7 @@ export async function generate(
             endpoints,
             extraTypes,
             hash,
+            getGeneratorVersion(),
             format,
         )
 
@@ -188,6 +200,16 @@ export async function generate(
                   ]
         for (const f of emittedFiles) {
             filesWritten.push(path.join(outputDir, f))
+        }
+
+        if (!options.silent && isInsideNodeModules(outputDir)) {
+            console.log(
+                dim(
+                    'Types written into node_modules — a reinstall wipes them.\n' +
+                        'For durable, reviewable types, generate into your source tree and commit it:\n' +
+                        '  strapi-types generate --output ./src/strapi',
+                ),
+            )
         }
 
         return {

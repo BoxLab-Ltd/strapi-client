@@ -62,6 +62,7 @@ describe("Generator with format: 'ts'", () => {
             undefined,
             undefined,
             '',
+            '',
             'ts',
         )
     })
@@ -101,6 +102,7 @@ describe("Generator with format: 'js'", () => {
             mockSchema,
             undefined,
             undefined,
+            '',
             '',
             'js',
         )

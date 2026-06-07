@@ -35,6 +35,7 @@ export class Generator {
         endpoints?: ParsedEndpoint[],
         extraTypes?: ExtraControllerType[],
         schemaHash: string = '',
+        generatorVersion: string = '',
         format: 'js' | 'ts' = 'js',
     ): Promise<void> {
         // Ensure output directory exists
@@ -49,6 +50,7 @@ export class Generator {
             endpoints,
             extraTypes,
             schemaHash,
+            generatorVersion,
         )
         const indexContent = this.indexGenerator.generate()
 
