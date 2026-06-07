@@ -5,7 +5,7 @@ The generated `StrapiClient` class provides typed methods for every collection i
 ## Creating a Client
 
 ```ts
-import { StrapiClient } from './dist'
+import { StrapiClient } from '@/strapi'
 
 const strapi = new StrapiClient({
     baseURL: 'http://localhost:1337',
@@ -64,8 +64,8 @@ const result = await strapi.articles.find({
     populate: { category: true },
 })
 
-// result.data is Article[]
-// result.meta contains pagination info
+// result is Article[]
+// use findWithMeta() if you need pagination metadata
 ```
 
 ### findOne()
@@ -80,7 +80,7 @@ const result = await strapi.articles.findOne('abc123', {
     populate: { category: true, author: true },
 })
 
-// result.data is Article
+// result is Article | null
 ```
 
 ### create()
@@ -89,14 +89,12 @@ Create a new entry. The data parameter uses the generated input type with all wr
 
 ```ts
 const result = await strapi.articles.create({
-    data: {
-        title: 'My New Article',
-        content: 'Article body text...',
-        category: 1, // relation as ID
-    },
+    title: 'My New Article',
+    content: 'Article body text...',
+    category: 1, // relation as ID
 })
 
-// result.data is Article
+// result is Article
 ```
 
 ### update()
@@ -105,12 +103,10 @@ Update an existing entry. All fields are optional for partial updates:
 
 ```ts
 const result = await strapi.articles.update('abc123', {
-    data: {
-        title: 'Updated Title',
-    },
+    title: 'Updated Title',
 })
 
-// result.data is Article
+// result is Article
 ```
 
 ### delete()
@@ -123,29 +119,23 @@ const result = await strapi.articles.delete('abc123')
 
 ## Response Format
 
-Strapi wraps all responses in a standard envelope:
+Strapi wraps responses in a `{ data, meta }` envelope over the wire, but the client **unwraps it for you** — each method resolves directly to the data:
 
 ```ts
-// find() returns:
-{
-  data: Article[],
-  meta: {
-    pagination: {
-      page: number,
-      pageSize: number,
-      pageCount: number,
-      total: number,
-    }
-  }
-}
-
-// findOne(), create(), update() return:
-{
-  data: Article
-}
+find() // Article[]
+findOne() // Article | null
+create() // Article
+update() // Article
+delete() // Article | null
 ```
 
-The client preserves this structure so you always have access to both the data and metadata.
+When you need pagination metadata, use `findWithMeta()`, which returns the full envelope:
+
+```ts
+const { data, meta } = await strapi.articles.findWithMeta()
+// data: Article[]
+// meta.pagination: { page, pageSize, pageCount, total }
+```
 
 ## Authentication
 
@@ -247,8 +237,6 @@ const homepage = await strapi.homepage.find({
     populate: { hero: true, seo: true },
 })
 
-// Update it
-await strapi.homepage.update('documentId', {
-    data: { title: 'Welcome' },
-})
+// Update it (single types take no documentId)
+await strapi.homepage.update({ title: 'Welcome' })
 ```

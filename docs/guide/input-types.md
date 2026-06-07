@@ -47,11 +47,9 @@ In input types, relations are represented as numeric IDs instead of objects:
 
 ```ts
 await strapi.articles.create({
-    data: {
-        title: 'New Article',
-        category: 5, // link to category with id 5
-        tags: [1, 3, 7], // link to tags with ids 1, 3, 7
-    },
+    title: 'New Article',
+    category: 5, // link to category with id 5
+    tags: [1, 3, 7], // link to tags with ids 1, 3, 7
 })
 ```
 
@@ -61,10 +59,8 @@ Media fields accept a numeric ID referencing an already-uploaded file in the Str
 
 ```ts
 await strapi.articles.create({
-    data: {
-        title: 'New Article',
-        coverImage: 12, // media library file with id 12
-    },
+    title: 'New Article',
+    coverImage: 12, // media library file with id 12
 })
 ```
 
@@ -78,13 +74,11 @@ Component fields in input types accept plain objects matching the component's in
 
 ```ts
 await strapi.articles.create({
-    data: {
-        title: 'New Article',
-        seo: {
-            metaTitle: 'Article about TypeScript',
-            metaDescription: 'A deep dive into type safety.',
-            keywords: 'typescript, strapi, types',
-        },
+    title: 'New Article',
+    seo: {
+        metaTitle: 'Article about TypeScript',
+        metaDescription: 'A deep dive into type safety.',
+        keywords: 'typescript, strapi, types',
     },
 })
 ```
@@ -93,13 +87,11 @@ Repeatable components accept an array of objects:
 
 ```ts
 await strapi.articles.create({
-    data: {
-        title: 'New Article',
-        sections: [
-            { heading: 'Introduction', body: '...' },
-            { heading: 'Conclusion', body: '...' },
-        ],
-    },
+    title: 'New Article',
+    sections: [
+        { heading: 'Introduction', body: '...' },
+        { heading: 'Conclusion', body: '...' },
+    ],
 })
 ```
 
@@ -110,23 +102,17 @@ For `update()`, all fields in the input type are optional. This allows partial u
 ```ts
 // Only update the title — all other fields remain unchanged
 await strapi.articles.update('abc123', {
-    data: {
-        title: 'Updated Title',
-    },
+    title: 'Updated Title',
 })
 
 // Clear a relation by setting it to null
 await strapi.articles.update('abc123', {
-    data: {
-        category: null,
-    },
+    category: null,
 })
 
 // Replace all tags
 await strapi.articles.update('abc123', {
-    data: {
-        tags: [2, 4, 6],
-    },
+    tags: [2, 4, 6],
 })
 ```
 
@@ -136,12 +122,10 @@ Fields that are not required in your Strapi schema accept `null` in the input ty
 
 ```ts
 await strapi.articles.create({
-    data: {
-        title: 'Article', // required — cannot be null
-        subtitle: null, // optional — can be null
-        category: null, // relation — can be null
-        coverImage: null, // media — can be null
-    },
+    title: 'Article', // required — cannot be null
+    subtitle: null, // optional — can be null
+    category: null, // relation — can be null
+    coverImage: null, // media — can be null
 })
 ```
 
@@ -151,35 +135,33 @@ Here is a complete example creating an article with all field types:
 
 ```ts
 const result = await strapi.articles.create({
-    data: {
-        // Scalar fields
-        title: 'Getting Started with Strapi v5',
-        slug: 'getting-started-strapi-v5',
-        content: 'Full article content here...',
-        views: 0,
-        featured: true,
-        publishedAt: '2025-01-15T10:00:00.000Z',
+    // Scalar fields
+    title: 'Getting Started with Strapi v5',
+    slug: 'getting-started-strapi-v5',
+    content: 'Full article content here...',
+    views: 0,
+    featured: true,
+    publishedAt: '2025-01-15T10:00:00.000Z',
 
-        // Relations (as IDs)
-        category: 3,
-        tags: [1, 5, 12],
-        author: 7,
+    // Relations (as IDs)
+    category: 3,
+    tags: [1, 5, 12],
+    author: 7,
 
-        // Media (as ID)
-        coverImage: 42,
+    // Media (as ID)
+    coverImage: 42,
 
-        // Component
-        seo: {
-            metaTitle: 'Getting Started with Strapi v5',
-            metaDescription: 'Learn how to use Strapi v5 with TypeScript.',
-        },
-
-        // Repeatable component
-        sections: [
-            { heading: 'Introduction', body: 'Welcome...' },
-            { heading: 'Setup', body: 'First, install...' },
-        ],
+    // Component
+    seo: {
+        metaTitle: 'Getting Started with Strapi v5',
+        metaDescription: 'Learn how to use Strapi v5 with TypeScript.',
     },
+
+    // Repeatable component
+    sections: [
+        { heading: 'Introduction', body: 'Welcome...' },
+        { heading: 'Setup', body: 'First, install...' },
+    ],
 })
 ```
 

@@ -145,7 +145,7 @@ const articles = await strapi.articles.find({
     pagination: { page: 1, pageSize: 10 },
 })
 
-console.log(articles.data) // Article[]
+console.log(articles) // Article[]
 ```
 
 ::: info Import paths in these docs

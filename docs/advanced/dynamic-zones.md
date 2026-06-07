@@ -124,8 +124,8 @@ const landing = await strapi.landing.find({
     populate: { content: true },
 })
 
-if (landing.data?.content) {
-    for (const block of landing.data.content) {
+if (landing.content) {
+    for (const block of landing.content) {
         switch (block.__component) {
             case 'landing.hero-block':
                 // TypeScript knows `block` is HeroBlock here
@@ -179,7 +179,7 @@ function isTextBlock(block: LandingBlock): block is TextBlockDz {
 }
 
 // Usage
-const heroes = landing.data?.content?.filter(isHeroBlock) ?? []
+const heroes = landing.content?.filter(isHeroBlock) ?? []
 // heroes is typed as HeroBlockDz[]
 ```
 
@@ -188,7 +188,7 @@ const heroes = landing.data?.content?.filter(isHeroBlock) ?? []
 A common pattern for rendering Dynamic Zones in a frontend framework:
 
 ```tsx
-import type { LandingGetPayload } from '@myapp/strapi-types'
+import type { LandingGetPayload } from '@/strapi'
 
 type LandingBlocks = LandingGetPayload<{
     populate: { content: true }
@@ -221,21 +221,19 @@ The generator emits `*DzInput` aliases for every component used in a Dynamic Zon
 
 ```typescript
 await strapi.landings.create({
-    data: {
-        title: 'New Landing Page',
-        content: [
-            {
-                __component: 'landing.hero-block',
-                heading: 'Welcome',
-                subheading: 'Get started today',
-            },
-            {
-                __component: 'landing.text-block',
-                body: 'This is the introduction paragraph.',
-                alignment: 'center',
-            },
-        ],
-    },
+    title: 'New Landing Page',
+    content: [
+        {
+            __component: 'landing.hero-block',
+            heading: 'Welcome',
+            subheading: 'Get started today',
+        },
+        {
+            __component: 'landing.text-block',
+            body: 'This is the introduction paragraph.',
+            alignment: 'center',
+        },
+    ],
 })
 ```
 
@@ -247,16 +245,14 @@ When updating, you replace the entire Dynamic Zone array. Strapi does not suppor
 
 ```typescript
 await strapi.landings.update(documentId, {
-    data: {
-        content: [
-            {
-                __component: 'landing.hero-block',
-                heading: 'Updated Heading',
-                subheading: null,
-            },
-            // Only these blocks will exist after the update
-        ],
-    },
+    content: [
+        {
+            __component: 'landing.hero-block',
+            heading: 'Updated Heading',
+            subheading: null,
+        },
+        // Only these blocks will exist after the update
+    ],
 })
 ```
 

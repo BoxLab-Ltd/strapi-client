@@ -9,7 +9,7 @@ When you call `find()` or `findOne()` without a populate parameter, relations ar
 ```ts
 const result = await strapi.articles.find()
 
-// result.data[0] has:
+// result[0] has:
 // {
 //   id: number
 //   documentId: string
@@ -38,7 +38,7 @@ const result = await strapi.articles.find({
 })
 
 // Now category is fully typed:
-// result.data[0].category is:
+// result[0].category is:
 // {
 //   id: number
 //   documentId: string
@@ -65,7 +65,7 @@ const result = await strapi.articles.find({
     },
 })
 
-// result.data[0].category.parentCategory is now fully typed
+// result[0].category.parentCategory is now fully typed
 ```
 
 You can nest as deeply as your schema requires:
@@ -106,7 +106,7 @@ This means you get compile-time errors if you try to access a field on an unpopu
 const result = await strapi.articles.find()
 
 // Type error: Property 'name' does not exist
-result.data[0].category.name // [!code error]
+result[0].category.name // [!code error]
 ```
 
 :::
@@ -116,7 +116,7 @@ result.data[0].category.name // [!code error]
 For advanced use cases, you can use the generated payload types directly to describe the shape of a response with specific populate options:
 
 ```ts
-import type { ArticleGetPayload } from './dist'
+import type { ArticleGetPayload } from '@/strapi'
 
 type ArticleWithCategory = ArticleGetPayload<{
     populate: {
@@ -155,7 +155,7 @@ const POPULATE = { category: true, author: true } as const
 
 // Type inference works correctly
 const result = await strapi.articles.find({ populate: POPULATE })
-result.data[0].category.name // ✅ fully typed
+result[0].category.name // ✅ fully typed
 ```
 
 When you pass the object inline, `as const` is not needed — TypeScript infers literal types automatically.
@@ -172,7 +172,7 @@ const result = await strapi.articles.find({
     },
 })
 
-// result.data[0].coverImage is:
+// result[0].coverImage is:
 // {
 //   id: number
 //   name: string
@@ -195,7 +195,7 @@ const result = await strapi.articles.find({
     },
 })
 
-// result.data[0].seo is the full component type
+// result[0].seo is the full component type
 // { metaTitle: string, metaDescription: string, ... }
 ```
 

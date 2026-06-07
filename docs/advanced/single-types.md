@@ -37,9 +37,7 @@ const landing = await strapi.landing.find({
 
 // Update the single entry (no documentId required)
 await strapi.landing.update({
-    data: {
-        title: 'Updated Landing Title',
-    },
+    title: 'Updated Landing Title',
 })
 
 // Delete the single entry
@@ -47,31 +45,31 @@ await strapi.landing.delete()
 ```
 
 ::: info
-The `find()` method on a Single Type returns a single object, not an array. This matches the Strapi REST API behavior where `GET /api/landing` returns `{ data: { ... } }` rather than `{ data: [...] }`.
+The `find()` method on a Single Type resolves to a single object, not an array. Strapi's `GET /api/landing` returns `{ data: { ... } }` over the wire; the client unwraps the envelope, so `find()` gives you the object directly.
 :::
 
 ## Response Shape
 
-The response from a Single Type `find()` call follows the standard Strapi response format but with a single object instead of an array:
+A Single Type `find()` resolves to the entry object directly — the client unwraps Strapi's `{ data }` envelope:
 
 ```typescript
 const result = await strapi.landing.find()
 
-// result.data is a single object, not an array
-console.log(result.data.title)
-console.log(result.data.documentId)
+// result is the entry object, not an array
+console.log(result.title)
+console.log(result.documentId)
 ```
 
 Compare this with a Collection Type:
 
 ```typescript
-// Collection type — data is an array
+// Collection type — find() returns an array
 const posts = await strapi.posts.find()
-console.log(posts.data[0].title)
+console.log(posts[0].title)
 
-// Single type — data is a single object
+// Single type — find() returns a single object
 const landing = await strapi.landing.find()
-console.log(landing.data.title)
+console.log(landing.title)
 ```
 
 ## Populate
@@ -120,10 +118,8 @@ Since there is only one entry, you do not need to provide a `documentId`:
 
 ```typescript
 await strapi.landing.update({
-    data: {
-        title: 'New Title',
-        description: 'Updated description for the landing page.',
-    },
+    title: 'New Title',
+    description: 'Updated description for the landing page.',
 })
 ```
 
@@ -162,7 +158,7 @@ const strapi = new StrapiClient({
 })
 
 export default async function LandingPage() {
-  const { data: landing } = await strapi.landing.find({
+  const landing = await strapi.landing.find({
     populate: {
       hero: {
         populate: {

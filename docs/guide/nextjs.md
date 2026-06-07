@@ -179,7 +179,7 @@ const strapi = new StrapiClient({
 })
 
 export default async function ArticlesPage() {
-    const { data: articles } = await strapi.articles.find(
+    const articles = await strapi.articles.find(
         {
             filters: { status: { $eq: 'published' } },
             sort: ['publishedAt:desc'],
@@ -219,15 +219,13 @@ const strapi = new StrapiClient({
 
 export async function createArticle(formData: FormData) {
     const result = await strapi.articles.create({
-        data: {
-            title: formData.get('title') as string,
-            content: formData.get('content') as string,
-            category: Number(formData.get('categoryId')),
-        },
+        title: formData.get('title') as string,
+        content: formData.get('content') as string,
+        category: Number(formData.get('categoryId')),
     })
 
     revalidateTag('articles')
-    return result.data
+    return result
 }
 
 export async function deleteArticle(documentId: string) {

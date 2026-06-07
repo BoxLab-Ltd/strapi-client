@@ -7,7 +7,7 @@ Complete reference for the `StrapiClient` class and all its methods.
 ### Constructor
 
 ```ts
-import { StrapiClient } from './dist'
+import { StrapiClient } from '@/strapi'
 
 const strapi = new StrapiClient(config: StrapiClientConfig)
 ```

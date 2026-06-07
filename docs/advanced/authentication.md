@@ -9,7 +9,7 @@
 The most common approach is to pass the API token when creating the client:
 
 ```typescript
-import { StrapiClient } from '@myapp/strapi-types'
+import { StrapiClient } from '@/strapi'
 
 const strapi = new StrapiClient({
     baseURL: 'http://localhost:1337',
