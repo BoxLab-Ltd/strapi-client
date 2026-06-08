@@ -168,3 +168,75 @@ const result = await strapi.articles.create({
 ::: tip
 The generated input types give you full autocomplete, so you do not need to memorize field names or types. Your editor will show you exactly what fields are available and what types they expect.
 :::
+
+## Validation Constraints
+
+Constraints declared in your Strapi schema (`min`, `max`, `minLength`, `maxLength`, `regex`, `default`) are surfaced as JSDoc tags on both the base type and the input type. Your editor shows them on hover and in autocomplete, so the rules live next to the field:
+
+```ts
+export interface ArticleInput {
+    /**
+     * @minLength 3
+     * @maxLength 120
+     */
+    title?: string | null
+    /** @pattern ^[a-z0-9-]+$ */
+    slug?: string | null
+    /**
+     * @minimum 0
+     * @maximum 100
+     */
+    discount?: number | null
+    /** @default "draft" */
+    status?: 'draft' | 'published' | null
+}
+```
+
+The tags follow the [ts-to-zod](https://github.com/fabien0102/ts-to-zod) / TypeDoc convention, so downstream tooling can read them too:
+
+| Strapi schema | JSDoc tag    |
+| ------------- | ------------ |
+| `min`         | `@minimum`   |
+| `max`         | `@maximum`   |
+| `minLength`   | `@minLength` |
+| `maxLength`   | `@maxLength` |
+| `regex`       | `@pattern`   |
+| `default`     | `@default`   |
+
+::: info
+These tags are informational — they document the schema in your editor and for tooling. The client does not enforce them at runtime yet; generated runtime validators (Zod) are planned in a later phase.
+:::
+
+## Default Values
+
+For every content type and component that declares schema defaults, a `*Defaults` constant is generated. Each holds only the fields that have a `default` in the schema, typed `as const satisfies Partial<*Input>`:
+
+```ts
+export const ArticleDefaults = {
+    status: 'draft',
+    featured: false,
+    views: 0,
+} as const satisfies Partial<ArticleInput>
+```
+
+Use it as a single source of truth for form seeds — the same defaults the server would apply:
+
+```ts
+import { ArticleDefaults } from './strapi/types'
+
+// Seed a create form straight from the schema
+const [form, setForm] = useState({ ...ArticleDefaults })
+
+await strapi.articles.create({ ...ArticleDefaults, title: 'New Article' })
+```
+
+Entities without any schema defaults get no constant — there is nothing to default.
+
+For components used in a **dynamic zone**, an additional `*DzDefaults` constant carries the `__component` discriminator, ready to push as a new block:
+
+```ts
+import { HeroSectionDzDefaults } from './strapi/types'
+
+// HeroSectionDzDefaults === { __component: 'sections.hero', ...defaults }
+setBlocks(prev => [...prev, { ...HeroSectionDzDefaults }])
+```
