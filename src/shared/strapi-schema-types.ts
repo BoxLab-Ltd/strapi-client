@@ -23,6 +23,14 @@ export interface StrapiAttribute {
     components?: string[]
     enum?: string[]
     multiple?: boolean
+    // Validation constraints (present on scalar attributes that declare them)
+    unique?: boolean
+    default?: unknown
+    min?: number
+    max?: number
+    minLength?: number
+    maxLength?: number
+    regex?: string
     [key: string]: unknown
 }
 

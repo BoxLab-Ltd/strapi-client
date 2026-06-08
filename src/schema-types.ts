@@ -67,6 +67,16 @@ export interface Attribute {
     required: boolean
     unique?: boolean
     defaultValue?: any
+    constraints?: AttributeConstraints
+}
+
+// Validation constraints from the Strapi schema; only type-relevant keys present
+export interface AttributeConstraints {
+    min?: number
+    max?: number
+    minLength?: number
+    maxLength?: number
+    regex?: string
 }
 
 export type AttributeType =

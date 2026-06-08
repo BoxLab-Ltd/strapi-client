@@ -643,6 +643,108 @@ describe('Schema Transformer', () => {
             )
         })
 
+        it('should extract min/max constraints for number attributes', () => {
+            const extracted: ExtractedSchema = {
+                contentTypes: {
+                    'api::product.product': {
+                        uid: 'api::product.product',
+                        kind: 'collectionType',
+                        collectionName: 'products',
+                        info: {
+                            singularName: 'product',
+                            pluralName: 'products',
+                            displayName: 'Product',
+                        },
+                        attributes: {
+                            quantity: { type: 'integer', min: 0, max: 100 },
+                        },
+                    },
+                },
+                components: {},
+            }
+
+            const result = transformSchema(extracted)
+
+            const quantity = result.contentTypes[0].attributes.find(
+                a => a.name === 'quantity',
+            )
+            expect(quantity).toBeDefined()
+            expect(quantity!.constraints).toEqual({ min: 0, max: 100 })
+        })
+
+        it('should extract minLength/maxLength/regex for string attributes', () => {
+            const extracted: ExtractedSchema = {
+                contentTypes: {
+                    'api::product.product': {
+                        uid: 'api::product.product',
+                        kind: 'collectionType',
+                        collectionName: 'products',
+                        info: {
+                            singularName: 'product',
+                            pluralName: 'products',
+                            displayName: 'Product',
+                        },
+                        attributes: {
+                            slug: {
+                                type: 'string',
+                                minLength: 3,
+                                maxLength: 50,
+                                regex: '^[a-z0-9-]+$',
+                            },
+                        },
+                    },
+                },
+                components: {},
+            }
+
+            const result = transformSchema(extracted)
+
+            const slug = result.contentTypes[0].attributes.find(
+                a => a.name === 'slug',
+            )
+            expect(slug!.constraints).toEqual({
+                minLength: 3,
+                maxLength: 50,
+                regex: '^[a-z0-9-]+$',
+            })
+        })
+
+        it('should fill unique and defaultValue (including falsy defaults)', () => {
+            const extracted: ExtractedSchema = {
+                contentTypes: {
+                    'api::product.product': {
+                        uid: 'api::product.product',
+                        kind: 'collectionType',
+                        collectionName: 'products',
+                        info: {
+                            singularName: 'product',
+                            pluralName: 'products',
+                            displayName: 'Product',
+                        },
+                        attributes: {
+                            sku: { type: 'string', unique: true },
+                            status: { type: 'string', default: 'draft' },
+                            featured: { type: 'boolean', default: false },
+                            plain: { type: 'string' },
+                        },
+                    },
+                },
+                components: {},
+            }
+
+            const attrs = transformSchema(extracted).contentTypes[0].attributes
+            const get = (n: string) => attrs.find(a => a.name === n)!
+
+            expect(get('sku').unique).toBe(true)
+            expect(get('status').defaultValue).toBe('draft')
+            expect(get('featured').defaultValue).toBe(false)
+
+            // No constraints/unique/default declared -> stays clean
+            expect(get('plain').unique).toBeUndefined()
+            expect(get('plain').defaultValue).toBeUndefined()
+            expect(get('plain').constraints).toBeUndefined()
+        })
+
         it('should handle kebab-case names correctly', () => {
             const extracted: ExtractedSchema = {
                 contentTypes: {

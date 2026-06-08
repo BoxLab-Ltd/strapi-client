@@ -582,4 +582,149 @@ describe('TypesGenerator', () => {
             )
         })
     })
+
+    // ================================================================
+    // Constraint JSDoc & defaults
+    // ================================================================
+    describe('Constraint JSDoc & defaults', () => {
+        // Grab a single interface body by its exact header, up to the next
+        // top-level `export` — lets us assert read vs input separately.
+        const sliceInterface = (src: string, header: string): string => {
+            const start = src.indexOf(header)
+            if (start === -1) return ''
+            const next = src.indexOf('\nexport ', start + header.length)
+            return src.slice(start, next === -1 ? undefined : next)
+        }
+
+        const constrainedSchema: ParsedSchema = {
+            contentTypes: [
+                {
+                    name: 'ApiProductProduct',
+                    cleanName: 'Product',
+                    collectionName: 'products',
+                    singularName: 'product',
+                    pluralName: 'products',
+                    kind: 'collection',
+                    attributes: [
+                        {
+                            name: 'quantity',
+                            type: { kind: 'integer' },
+                            required: false,
+                            constraints: { min: 0, max: 100 },
+                        },
+                        {
+                            name: 'slug',
+                            type: { kind: 'string' },
+                            required: true,
+                            constraints: { minLength: 3, regex: '^[a-z-]+$' },
+                        },
+                        {
+                            name: 'status',
+                            type: { kind: 'string' },
+                            required: false,
+                            defaultValue: 'draft',
+                        },
+                        {
+                            name: 'featured',
+                            type: { kind: 'boolean' },
+                            required: false,
+                            defaultValue: false,
+                        },
+                    ],
+                    relations: [],
+                    media: [],
+                    components: [],
+                    dynamicZones: [],
+                },
+            ],
+            components: [],
+        }
+
+        const constrainedOutput = new TypesGenerator().generate(
+            constrainedSchema,
+        )
+
+        it('attaches constraint JSDoc to read-type properties', () => {
+            const read = sliceInterface(
+                constrainedOutput,
+                'export interface Product {',
+            )
+            expect(read).toContain('@minimum 0')
+            expect(read).toContain('@maximum 100')
+            expect(read).toContain('@minLength 3')
+            expect(read).toContain('@pattern ^[a-z-]+$')
+        })
+
+        it('attaches constraint JSDoc to input-type properties', () => {
+            const input = sliceInterface(
+                constrainedOutput,
+                'export interface ProductInput {',
+            )
+            expect(input).toContain('@minimum 0')
+            expect(input).toContain('@maximum 100')
+            expect(input).toContain('@minLength 3')
+            expect(input).toContain('@pattern ^[a-z-]+$')
+        })
+
+        it('emits a *Defaults const for content types with defaults', () => {
+            expect(constrainedOutput).toContain(
+                'export const ProductDefaults = { status: "draft", featured: false } as const satisfies Partial<ProductInput>',
+            )
+        })
+
+        it('emits *Defaults and *DzDefaults for components (DZ form carries __component)', () => {
+            const schema: ParsedSchema = {
+                contentTypes: [
+                    {
+                        name: 'ApiPagePage',
+                        cleanName: 'Page',
+                        collectionName: 'pages',
+                        singularName: 'page',
+                        pluralName: 'pages',
+                        kind: 'collection',
+                        attributes: [],
+                        relations: [],
+                        media: [],
+                        components: [],
+                        dynamicZones: [
+                            {
+                                name: 'blocks',
+                                components: ['landing.hero'],
+                                componentTypes: ['LandingHero'],
+                                required: false,
+                            },
+                        ],
+                    },
+                ],
+                components: [
+                    {
+                        name: 'LandingHero',
+                        cleanName: 'LandingHero',
+                        category: 'landing',
+                        uid: 'landing.hero',
+                        attributes: [
+                            {
+                                name: 'title',
+                                type: { kind: 'string' },
+                                required: false,
+                                defaultValue: 'Hello',
+                            },
+                        ],
+                        relations: [],
+                        media: [],
+                        components: [],
+                        dynamicZones: [],
+                    },
+                ],
+            }
+
+            const out = new TypesGenerator().generate(schema)
+            expect(out).toContain(
+                'export const LandingHeroDefaults = { title: "Hello" } as const satisfies Partial<LandingHeroInput>',
+            )
+            expect(out).toContain(
+                'export const LandingHeroDzDefaults = { __component: "landing.hero", title: "Hello" } as const satisfies Partial<LandingHeroDzInput>',
+            )
+        })
+    })
 })

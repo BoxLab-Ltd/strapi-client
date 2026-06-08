@@ -7,6 +7,7 @@ import * as path from 'path'
 import { createApiClient } from '../utils/api-client.js'
 import {
     readLocalSchemaHash,
+    readLocalGeneratorVersion,
     getDefaultOutputDir,
 } from '../utils/file-writer.js'
 import { Generator } from '../../generator/index.js'
@@ -60,6 +61,27 @@ export interface GenerateResult {
 }
 
 /**
+ * Whether committed output can be reused without regenerating. Requires the
+ * files to exist AND both the schema hash and the generator version to match —
+ * a package upgrade that changes the output format bumps the version, so an
+ * unchanged schema still forces a regen (otherwise new emitters never ship).
+ */
+export function isGeneratedOutputFresh(params: {
+    localHash: string | null
+    remoteHash: string
+    localVersion: string | null
+    cliVersion: string
+    allFilesExist: boolean
+}): boolean {
+    const { localHash, remoteHash, localVersion, cliVersion, allFilesExist } =
+        params
+    if (!localHash || !allFilesExist) return false
+    if (localHash !== remoteHash) return false
+    if (localVersion !== cliVersion) return false
+    return true
+}
+
+/**
  * Generate types from Strapi API
  */
 export async function generate(
@@ -84,6 +106,8 @@ export async function generate(
         // Check if we need to regenerate (compare hashes)
         if (!options.force) {
             const localHash = readLocalSchemaHash(outputDir)
+            const localVersion = readLocalGeneratorVersion(outputDir)
+            const cliVersion = getGeneratorVersion()
 
             // Verify generated files actually exist (they may be lost after package update)
             const generatedFiles = (
@@ -101,7 +125,15 @@ export async function generate(
                 try {
                     const { hash: remoteHash } = await client.getSchemaHash()
 
-                    if (localHash === remoteHash) {
+                    if (
+                        isGeneratedOutputFresh({
+                            localHash,
+                            remoteHash,
+                            localVersion,
+                            cliVersion,
+                            allFilesExist,
+                        })
+                    ) {
                         if (!options.silent) {
                             console.log(
                                 `Types are up to date (hash: ${localHash.substring(0, 8)}...)`,
@@ -116,9 +148,15 @@ export async function generate(
                     }
 
                     if (!options.silent) {
-                        console.log(
-                            `Schema changed (${localHash.substring(0, 8)}... -> ${remoteHash.substring(0, 8)}...)`,
-                        )
+                        if (localHash !== remoteHash) {
+                            console.log(
+                                `Schema changed (${localHash.substring(0, 8)}... -> ${remoteHash.substring(0, 8)}...)`,
+                            )
+                        } else {
+                            console.log(
+                                `Generator updated (v${localVersion ?? '?'} -> v${cliVersion}), regenerating...`,
+                            )
+                        }
                     }
                 } catch {
                     // If hash check fails, continue with full generation

@@ -15,6 +15,7 @@ import type {
     ContentType,
     Component,
     Attribute,
+    AttributeConstraints,
     AttributeType,
     Relation,
     MediaField,
@@ -273,14 +274,39 @@ function processAttribute(
     const attrType = mapStrapiType(attr)
     if (!attrType) return null
 
+    const constraints = extractConstraints(attr)
+
     return {
         category: 'attribute',
         data: {
             name,
             type: attrType,
             required,
+            ...(attr.unique === true ? { unique: true } : {}),
+            ...(attr.default !== undefined
+                ? { defaultValue: attr.default }
+                : {}),
+            ...(constraints ? { constraints } : {}),
         },
     }
+}
+
+/**
+ * Pull validation constraints off a scalar attribute. Returns undefined when
+ * the attribute declares none, to avoid empty objects in the IR.
+ */
+function extractConstraints(
+    attr: StrapiAttribute,
+): AttributeConstraints | undefined {
+    const constraints: AttributeConstraints = {}
+    if (typeof attr.min === 'number') constraints.min = attr.min
+    if (typeof attr.max === 'number') constraints.max = attr.max
+    if (typeof attr.minLength === 'number')
+        constraints.minLength = attr.minLength
+    if (typeof attr.maxLength === 'number')
+        constraints.maxLength = attr.maxLength
+    if (typeof attr.regex === 'string') constraints.regex = attr.regex
+    return Object.keys(constraints).length > 0 ? constraints : undefined
 }
 
 /**

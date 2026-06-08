@@ -1,11 +1,22 @@
 import { Project, SourceFile } from 'ts-morph'
-import { ParsedSchema, ContentType, Component } from '../schema-types.js'
+import {
+    ParsedSchema,
+    ContentType,
+    Component,
+    Attribute,
+} from '../schema-types.js'
 import { TypeTransformer } from '../transformer/index.js'
+import { buildConstraintDocs } from './constraint-docs.js'
 import {
     generateFilterUtilityTypes,
     generateEntityFilters,
     generateTypedQueryParams,
 } from '../core/generator/filters-generator.js'
+
+// Object-literal key: bare when a valid identifier, quoted otherwise.
+function safeKey(name: string): string {
+    return /^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)
+}
 
 export class TypesGenerator {
     private transformer: TypeTransformer
@@ -71,6 +82,38 @@ export class TypesGenerator {
         // Input type interfaces
         for (const contentType of schema.contentTypes) {
             this.addInputTypeInterface(sf, contentType)
+        }
+
+        // *Defaults consts (emitted only for entities that declare defaults)
+        for (const contentType of schema.contentTypes) {
+            this.addDefaultsConst(
+                sf,
+                `${contentType.cleanName}Defaults`,
+                `${contentType.cleanName}Input`,
+                contentType.attributes,
+            )
+        }
+        for (const component of schema.components) {
+            this.addDefaultsConst(
+                sf,
+                `${component.cleanName}Defaults`,
+                `${component.cleanName}Input`,
+                component.attributes,
+            )
+        }
+        // Dynamic-zone form carries the __component discriminator; emitted only
+        // for components actually used in a dynamic zone (matches the *DzInput
+        // aliases). Always includes __component, even without attribute defaults.
+        for (const component of schema.components) {
+            if (dzComponentUids.has(component.uid)) {
+                this.addDefaultsConst(
+                    sf,
+                    `${component.cleanName}DzDefaults`,
+                    `${component.cleanName}DzInput`,
+                    component.attributes,
+                    [`__component: ${JSON.stringify(component.uid)}`],
+                )
+            }
         }
 
         // PopulateParam types
@@ -304,6 +347,39 @@ type _SortValue<T> = _EntityField<T> | \`\${_EntityField<T>}:\${"asc" | "desc"}\
 type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry extends { fields: readonly (infer F extends string)[] } ? Pick<TBase, Extract<F | 'id' | 'documentId', keyof TBase>> & Omit<TFull, keyof TBase> : TFull`
     }
 
+    // Constraint/default JSDoc for a property, as a spreadable ts-morph
+    // structure fragment ({} when the attribute declares nothing).
+    private docsFor(attr: Attribute): { docs?: string[] } {
+        const lines = buildConstraintDocs(attr)
+        return lines.length ? { docs: [lines.join('\n')] } : {}
+    }
+
+    // Emit `export const <constName> = { ... } as const satisfies Partial<...>`
+    // from attributes carrying a schema default. `leading` lets callers prepend
+    // fixed entries (e.g. the `__component` discriminator for dynamic zones).
+    // Skipped entirely when there is nothing to emit.
+    private addDefaultsConst(
+        sf: SourceFile,
+        constName: string,
+        inputType: string,
+        attributes: Attribute[],
+        leading: string[] = [],
+    ): void {
+        const entries = [
+            ...leading,
+            ...attributes
+                .filter(a => a.defaultValue !== undefined)
+                .map(
+                    a =>
+                        `${safeKey(a.name)}: ${JSON.stringify(a.defaultValue)}`,
+                ),
+        ]
+        if (entries.length === 0) return
+        sf.addStatements(
+            `export const ${constName} = { ${entries.join(', ')} } as const satisfies Partial<${inputType}>`,
+        )
+    }
+
     private addComponentInterface(sf: SourceFile, component: Component): void {
         sf.addInterface({
             name: component.cleanName,
@@ -316,6 +392,7 @@ type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry e
                         attr.type,
                         attr.required,
                     ),
+                    ...this.docsFor(attr),
                 })),
             ],
         })
@@ -369,6 +446,7 @@ type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry e
                     name: attr.name,
                     type: this.transformer.toTypeScript(attr.type, false),
                     hasQuestionToken: true,
+                    ...this.docsFor(attr),
                 })),
                 ...component.media.map(mediaField => ({
                     name: mediaField.name,
@@ -426,6 +504,7 @@ type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry e
                         attr.type,
                         attr.required,
                     ),
+                    ...this.docsFor(attr),
                 })),
             ],
         })
@@ -444,6 +523,7 @@ type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry e
                     name: attr.name,
                     type: this.transformer.toTypeScript(attr.type, false),
                     hasQuestionToken: true,
+                    ...this.docsFor(attr),
                 })),
                 ...contentType.media.map(mediaField => ({
                     name: mediaField.name,
