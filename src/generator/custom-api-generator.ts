@@ -1,6 +1,22 @@
 import { ParsedRoute } from '../shared/route-types.js'
 import { ParsedCustomTypes } from '../shared/custom-types.js'
-import { toCamelCase } from '../shared/string-utils.js'
+import { toCamelCase, toPascalCase } from '../shared/string-utils.js'
+
+/**
+ * CollectionAPI / SingleTypeAPI CRUD surface. A custom route whose action
+ * matches one of these would override the inherited method with an
+ * incompatible signature (TS2416) and shadow the typed CRUD, so on a
+ * content-type class its generated method is name-mangled — e.g. a `create`
+ * action on the article controller becomes `createArticle`.
+ */
+const RESERVED_BASE_METHODS = new Set([
+    'find',
+    'findOne',
+    'findWithMeta',
+    'create',
+    'update',
+    'delete',
+])
 
 export class CustomApiGenerator {
     private customTypes?: ParsedCustomTypes
@@ -28,12 +44,18 @@ export class CustomApiGenerator {
         routes: ParsedRoute[],
         isStandalone: boolean = false,
         endpoint?: string,
+        contentTypeName?: string,
     ): string {
         return routes
             .map(
                 route =>
                     '\n' +
-                    this.generateCustomMethod(route, isStandalone, endpoint),
+                    this.generateCustomMethod(
+                        route,
+                        isStandalone,
+                        endpoint,
+                        contentTypeName,
+                    ),
             )
             .join('\n')
     }
@@ -59,11 +81,23 @@ export class CustomApiGenerator {
         route: ParsedRoute,
         isStandalone: boolean = false,
         endpoint?: string,
+        contentTypeName?: string,
     ): string {
         const customType = this.customTypes?.types.get(route.handler)
         const inputType = customType?.inputType || 'any'
         const outputType = customType?.outputType || 'any'
-        const methodName = toCamelCase(route.action)
+        let methodName = toCamelCase(route.action)
+        // On a content-type class, a custom action sharing a base CRUD name
+        // would emit an incompatible override (TS2416) and hide the typed base
+        // method, so mangle it (create -> createArticle). Standalone classes
+        // extend BaseAPI, which has no CRUD surface, so they are left as-is.
+        if (
+            !isStandalone &&
+            contentTypeName &&
+            RESERVED_BASE_METHODS.has(methodName)
+        ) {
+            methodName = methodName + toPascalCase(contentTypeName)
+        }
         const params = this.generateMethodParams(route, inputType)
         const hasBody =
             route.method === 'POST' ||

@@ -5,18 +5,20 @@ import * as path from 'path'
 import * as ts from 'typescript'
 import { Generator } from '../../../src/generator/index.js'
 import type { ParsedSchema } from '../../../src/schema-types.js'
+import type { ParsedEndpoint } from '../../../src/shared/endpoint-types.js'
 
 /**
  * Type-clean guarantee: the generated `--format ts` client must compile under
  * strict mode WITHOUT its `@ts-nocheck` header. This guards the bugs cleared in
- * the v2.0 type-clean wave (private endpoint, fetchOptions.next, QueryParams
- * cast, and the TPopulate / GetPayload overload constraint — "Bug B").
+ * the v2.0 type-clean wave: private endpoint, fetchOptions.next, QueryParams
+ * cast, the TPopulate / GetPayload overload constraint ("Bug B"), and the
+ * custom-route CRUD-name collision ("Bug D", via the endpoints below).
  *
- * The appended assertion module also pins the *behaviour* the Bug B fix had to
- * preserve: populate narrowing still works and invalid populate keys are still
- * rejected (encoded as `@ts-expect-error`, which fails the build if unused).
- *
- * Note: this schema has no custom routes, so "Bug D" is out of scope here.
+ * The appended assertion module also pins the *behaviour* the fixes had to
+ * preserve: populate narrowing still works, invalid populate keys are still
+ * rejected (encoded as `@ts-expect-error`, which fails the build if unused),
+ * and a custom route reusing `create` is name-mangled (`createArticle`) rather
+ * than shadowing the inherited base method.
  */
 
 const rel = (name: string, target: string, targetType: string) => ({
@@ -99,24 +101,41 @@ async function _assert() {
   // @ts-expect-error - relations are absent without populate
   const _noCat: ElB['category'] = null as any
   void _noCat
+  // Bug D: the inherited base create stays typed, and the custom route that
+  // reused the \`create\` action is exposed under the mangled name.
+  await client.articles.create({ title: 'x' })
+  await client.articles.createArticle()
 }
 void _assert
 `
 
+const endpoints: ParsedEndpoint[] = [
+    // a custom route that reuses the `create` CRUD action on the article controller
+    {
+        method: 'POST',
+        path: '/articles/special',
+        handler: 'api::article.article.create',
+        controller: 'article',
+        action: 'create',
+    },
+]
+
 describe('generated client type-checks clean without @ts-nocheck', () => {
     let tmpDir: string
     let diagnostics: ts.Diagnostic[]
+    let clientSource: string
 
     beforeAll(async () => {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'strapi-types-tc-'))
         await new Generator(tmpDir).generate(
             schema,
-            undefined,
+            endpoints,
             undefined,
             '',
             '',
             'ts',
         )
+        clientSource = fs.readFileSync(path.join(tmpDir, 'client.ts'), 'utf-8')
 
         const files = ['types.ts', 'client.ts', 'index.ts'].map(f =>
             path.join(tmpDir, f),
@@ -158,5 +177,14 @@ describe('generated client type-checks clean without @ts-nocheck', () => {
             return `TS${d.code} ${loc}${msg}`
         })
         expect(formatted).toEqual([])
+    })
+
+    it('name-mangles a custom route that reuses a base CRUD action (Bug D)', () => {
+        expect(clientSource).toContain('async createArticle(')
+        const articleApi =
+            clientSource.match(/class ArticleAPI extends[\s\S]*?\n}/)?.[0] ?? ''
+        expect(articleApi).toContain('async createArticle(')
+        // the inherited base `create` must NOT be overridden by the custom route
+        expect(articleApi).not.toContain('async create(')
     })
 })

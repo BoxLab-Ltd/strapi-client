@@ -1159,6 +1159,7 @@ class UsersPermissionsUserAPI<
                         routes,
                         false,
                         endpoint,
+                        contentType.cleanName,
                     )
 
                 classes.push(
