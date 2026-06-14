@@ -26,46 +26,64 @@ When you write data (create or update), you use the input type where relations a
 ```ts
 // Writing — input type (ArticleInput)
 {
-  title: string
-  content: string
-  category: number | null         // single relation as ID
-  tags: number[]                  // many relation as ID array
-  coverImage: number | null       // media as ID
+  title?: string | null
+  content?: string | null
+  category?: RelationInput        // relation — id, documentId, array, or { connect | disconnect | set }
+  tags?: RelationInput            // relation (any cardinality)
+  coverImage?: MediaInput         // media — file id
 }
 ```
 
-## Relations as IDs
+## Relations
 
-In input types, relations are represented as numeric IDs instead of objects:
+In input types, every relation — regardless of cardinality — is typed as `RelationInput`:
 
-| Relation Type | Input Type       |
-| ------------- | ---------------- |
-| One-to-one    | `number \| null` |
-| Many-to-one   | `number \| null` |
-| One-to-many   | `number[]`       |
-| Many-to-many  | `number[]`       |
+```ts
+type StrapiID = string | number
+
+type RelationInput =
+    | StrapiID // a single id or documentId
+    | StrapiID[] // an array of ids
+    | { connect?: StrapiID[]; disconnect?: StrapiID[]; set?: StrapiID[] } // explicit relation operations
+    | null
+```
+
+| Relation Type | Input Type      |
+| ------------- | --------------- |
+| One-to-one    | `RelationInput` |
+| Many-to-one   | `RelationInput` |
+| One-to-many   | `RelationInput` |
+| Many-to-many  | `RelationInput` |
+
+A plain id or array is shorthand for `set` — it overwrites the existing relations. Use the explicit `{ connect | disconnect | set }` form for fine-grained updates.
 
 ```ts
 await strapi.articles.create({
     title: 'New Article',
     category: 5, // link to category with id 5
-    tags: [1, 3, 7], // link to tags with ids 1, 3, 7
+    tags: [1, 3, 7], // set tags to ids 1, 3, 7
+})
+
+// Fine-grained update without overwriting the whole list
+await strapi.articles.update('abc123', {
+    tags: { connect: [9], disconnect: [3] },
 })
 ```
 
-## Media as ID
+## Media
 
-Media fields accept a numeric ID referencing an already-uploaded file in the Strapi media library:
+Single-media fields are typed `MediaInput` (`StrapiID | null`); multi-media fields are `MultiMediaInput` (`StrapiID[] | null`). Both reference an already-uploaded file by its numeric id:
 
 ```ts
 await strapi.articles.create({
     title: 'New Article',
-    coverImage: 12, // media library file with id 12
+    coverImage: 12, // single media — file id 12
+    gallery: [12, 15, 20], // multi media — array of file ids
 })
 ```
 
 ::: info
-File uploads are handled separately through Strapi's upload API. The input type only accepts the ID of an existing media entry.
+File uploads are handled separately through Strapi's upload API. The input type only accepts the id of an existing media entry.
 :::
 
 ## Components as Objects

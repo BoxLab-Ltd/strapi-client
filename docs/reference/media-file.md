@@ -67,11 +67,13 @@ export interface MediaFile {
 
 Strapi media attributes can be configured as single or multiple:
 
-| Configuration               | Base Type           | Input Type         |
-| --------------------------- | ------------------- | ------------------ |
-| Single media (required)     | `MediaFile`         | `number \| null`   |
-| Single media (not required) | `MediaFile \| null` | `number \| null`   |
-| Multiple media              | `MediaFile[]`       | `number[] \| null` |
+| Configuration               | Base Type           | Input Type        |
+| --------------------------- | ------------------- | ----------------- |
+| Single media (required)     | `MediaFile`         | `MediaInput`      |
+| Single media (not required) | `MediaFile \| null` | `MediaInput`      |
+| Multiple media              | `MediaFile[]`       | `MultiMediaInput` |
+
+Where `MediaInput` is `StrapiID | null` and `MultiMediaInput` is `StrapiID[] | null` (`StrapiID = string | number`).
 
 ### Using Media with Populate
 
@@ -130,14 +132,14 @@ The `formats` field is typed as `Record<string, MediaFormat> | null`, covering S
 
 ### Media in Input Types
 
-When creating or updating entries, media fields accept numeric IDs (not file objects). Upload the file first via Strapi's upload API, then reference it by ID.
+When creating or updating entries, media fields accept the file's numeric id (not file objects) — single media is typed `MediaInput`, multi media `MultiMediaInput`. Upload the file first via Strapi's upload API, then reference it by id.
 
 ```ts
-// Create with media by ID
+// Create with media by id
 await strapi.articles.create({
     title: 'New Article',
-    cover: 42, // single media -> number
-    gallery: [42, 43], // multiple media -> number[]
+    cover: 42, // single media -> MediaInput
+    gallery: [42, 43], // multiple media -> MultiMediaInput
 })
 
 // Clear a media field

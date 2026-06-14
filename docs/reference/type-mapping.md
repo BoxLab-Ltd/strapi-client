@@ -67,14 +67,14 @@ const article = await strapi.articles.findOne('abc123', {
 
 ### Input Types (create/update)
 
-In input types, relations are always referenced by ID:
+In input types, every relation is typed as `RelationInput` (`StrapiID | StrapiID[] | RelationOperations | null`, where `StrapiID = string | number`). A plain id or array is shorthand for `set`; the explicit `{ connect | disconnect | set }` form is also accepted:
 
 | Relation Type | Input TypeScript Type |
 | ------------- | --------------------- |
-| `oneToOne`    | `number \| null`      |
-| `manyToOne`   | `number \| null`      |
-| `oneToMany`   | `number[]`            |
-| `manyToMany`  | `number[]`            |
+| `oneToOne`    | `RelationInput`       |
+| `manyToOne`   | `RelationInput`       |
+| `oneToMany`   | `RelationInput`       |
+| `manyToMany`  | `RelationInput`       |
 
 ## Base Fields
 
@@ -128,8 +128,8 @@ Nullability depends on the `required` setting in your Strapi schema and the type
 
 - **All fields** are optional (`?:`) because input types are used for both create and partial update operations.
 - Scalar fields use `| null` to allow clearing a value (e.g., `title?: string | null`).
-- Relation fields accept IDs: `category?: number | null` or `tags?: number[]`.
-- Media fields accept IDs: `avatar?: number | null` or `gallery?: number[]`.
+- Relation fields are typed `RelationInput`: `category?: RelationInput` (accepts an id/documentId, an array, or `{ connect | disconnect | set }`).
+- Media fields are typed `MediaInput` (single) or `MultiMediaInput` (multiple): `avatar?: MediaInput`, `gallery?: MultiMediaInput`.
 - Component fields accept objects: `seo?: SeoComponentInput | null`.
 
 ```ts
@@ -137,9 +137,9 @@ Nullability depends on the `required` setting in your Strapi schema and the type
 interface ArticleInput {
     title?: string | null
     body?: string | null
-    category?: number | null // relation by ID
-    cover?: number | null // media by ID
+    category?: RelationInput // relation (id, documentId, array, or operations)
+    cover?: MediaInput // media by id
     seo?: SeoComponentInput | null // component as object
-    tags?: number[] // many relation by IDs
+    tags?: RelationInput // relation (any cardinality)
 }
 ```
