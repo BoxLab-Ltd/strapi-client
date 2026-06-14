@@ -164,8 +164,9 @@ export class ClientGenerator {
                 imports.push(`${ct.cleanName}PopulateParam`)
             }
 
-            // Add Input type for create/update operations
-            imports.push(`${ct.cleanName}Input`)
+            // Add Create/Update input types for create() / update()
+            imports.push(`${ct.cleanName}CreateInput`)
+            imports.push(`${ct.cleanName}UpdateInput`)
 
             // Add Filter type for type-safe filtering
             filterImports.push(`${ct.cleanName}Filters`)
@@ -883,7 +884,8 @@ ${STRINGIFY_QUERY_SOURCE}`
         return `// Collection API wrapper with type-safe populate support
 class CollectionAPI<
   TBase,
-  TInput = Partial<TBase>,
+  TCreateInput = Partial<TBase>,
+  TUpdateInput = Partial<TBase>,
   TFilters = Record<string, any>,
   TPopulateKeys extends Record<string, any> = Record<string, any>
 > extends BaseAPI {
@@ -992,7 +994,7 @@ class CollectionAPI<
     return this.unwrap(response)
   }
 
-  async create(data: TInput | FormData, nextOptions?: NextOptions): Promise<TBase> {
+  async create(data: TCreateInput | FormData, nextOptions?: NextOptions): Promise<TBase> {
     // FormData is sent as-is; everything else goes through the envelope hook
     const body = data instanceof FormData
       ? data
@@ -1010,7 +1012,7 @@ class CollectionAPI<
     return this.unwrap(response)
   }
 
-  async update(documentId: string, data: TInput | FormData, nextOptions?: NextOptions): Promise<TBase> {
+  async update(documentId: string, data: TUpdateInput | FormData, nextOptions?: NextOptions): Promise<TBase> {
     // FormData is sent as-is; everything else goes through the envelope hook
     const body = data instanceof FormData
       ? data
@@ -1046,7 +1048,8 @@ class CollectionAPI<
         return `// Single Type API wrapper with type-safe populate support
 class SingleTypeAPI<
   TBase,
-  TInput = Partial<TBase>,
+  TCreateInput = Partial<TBase>,
+  TUpdateInput = Partial<TBase>,
   TFilters = Record<string, any>,
   TPopulateKeys extends Record<string, any> = Record<string, any>
 > extends BaseAPI {
@@ -1085,7 +1088,7 @@ class SingleTypeAPI<
     return response.data
   }
 
-  async update(data: TInput | FormData, nextOptions?: NextOptions): Promise<TBase> {
+  async update(data: TUpdateInput | FormData, nextOptions?: NextOptions): Promise<TBase> {
     // If data is FormData, use it directly; otherwise wrap in { data } and JSON stringify
     const body = data instanceof FormData
       ? data
@@ -1110,10 +1113,11 @@ class SingleTypeAPI<
 // payload, unlike standard content types which use the { data } envelope
 class UsersPermissionsUserAPI<
   TBase,
-  TInput = Partial<TBase>,
+  TCreateInput = Partial<TBase>,
+  TUpdateInput = Partial<TBase>,
   TFilters = Record<string, any>,
   TPopulateKeys extends Record<string, any> = Record<string, any>
-> extends CollectionAPI<TBase, TInput, TFilters, TPopulateKeys> {
+> extends CollectionAPI<TBase, TCreateInput, TUpdateInput, TFilters, TPopulateKeys> {
   protected wrapBody(data: any): any {
     return data
   }
@@ -1204,9 +1208,9 @@ ${customMethods}
             contentType.dynamicZones.length > 0
 
         if (hasPopulatableFields) {
-            return `<${contentType.cleanName}, ${contentType.cleanName}Input, ${contentType.cleanName}Filters, ${contentType.cleanName}PopulateParam>`
+            return `<${contentType.cleanName}, ${contentType.cleanName}CreateInput, ${contentType.cleanName}UpdateInput, ${contentType.cleanName}Filters, ${contentType.cleanName}PopulateParam>`
         }
-        return `<${contentType.cleanName}, ${contentType.cleanName}Input, ${contentType.cleanName}Filters>`
+        return `<${contentType.cleanName}, ${contentType.cleanName}CreateInput, ${contentType.cleanName}UpdateInput, ${contentType.cleanName}Filters>`
     }
 
     /**

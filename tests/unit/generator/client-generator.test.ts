@@ -123,10 +123,11 @@ describe('ClientGenerator', () => {
             expect(output).not.toContain('CategoryPopulateParam')
         })
         it('should import Input types', () => {
-            expect(output).toContain('ItemInput')
-            expect(output).toContain('CategoryInput')
-            expect(output).toContain('UserInput')
-            expect(output).toContain('HomepageInput')
+            expect(output).toContain('ItemCreateInput')
+            expect(output).toContain('ItemUpdateInput')
+            expect(output).toContain('CategoryCreateInput')
+            expect(output).toContain('UserUpdateInput')
+            expect(output).toContain('HomepageUpdateInput')
         })
         it('should import Filter types', () => {
             expect(output).toContain('ItemFilters')
@@ -337,10 +338,11 @@ describe('ClientGenerator', () => {
     })
 
     describe('CollectionAPI', () => {
-        it('should generate CollectionAPI class with 4 generic parameters', () => {
+        it('should generate CollectionAPI class with 5 generic parameters', () => {
             expect(output).toContain('class CollectionAPI<')
             expect(output).toContain('TBase,')
-            expect(output).toContain('TInput = Partial<TBase>,')
+            expect(output).toContain('TCreateInput = Partial<TBase>,')
+            expect(output).toContain('TUpdateInput = Partial<TBase>,')
             expect(output).toContain('TFilters = Record<string, any>,')
             expect(output).toContain(
                 'TPopulateKeys extends Record<string, any> = Record<string, any>',
@@ -396,14 +398,14 @@ describe('ClientGenerator', () => {
             )
             expect(section).toContain('documentId: string,')
         })
-        it('should generate create method with TInput | FormData', () => {
+        it('should generate create method with TCreateInput | FormData', () => {
             expect(output).toContain(
-                'async create(data: TInput | FormData, nextOptions?: NextOptions): Promise<TBase>',
+                'async create(data: TCreateInput | FormData, nextOptions?: NextOptions): Promise<TBase>',
             )
         })
         it('should generate update method', () => {
             expect(output).toContain(
-                'async update(documentId: string, data: TInput | FormData, nextOptions?: NextOptions): Promise<TBase>',
+                'async update(documentId: string, data: TUpdateInput | FormData, nextOptions?: NextOptions): Promise<TBase>',
             )
         })
         it('should generate delete method', () => {
@@ -477,14 +479,15 @@ describe('ClientGenerator', () => {
     })
 
     describe('SingleTypeAPI', () => {
-        it('should generate SingleTypeAPI class with 4 generic parameters', () => {
+        it('should generate SingleTypeAPI class with 5 generic parameters', () => {
             expect(output).toContain('class SingleTypeAPI<')
             const section = output.slice(
                 output.indexOf('class SingleTypeAPI<'),
                 output.indexOf('class SingleTypeAPI<') + 500,
             )
             expect(section).toContain('TBase,')
-            expect(section).toContain('TInput = Partial<TBase>,')
+            expect(section).toContain('TCreateInput = Partial<TBase>,')
+            expect(section).toContain('TUpdateInput = Partial<TBase>,')
             expect(section).toContain('TFilters = Record<string, any>,')
             expect(section).toContain(
                 'TPopulateKeys extends Record<string, any> = Record<string, any>',
@@ -513,7 +516,7 @@ describe('ClientGenerator', () => {
                 ),
             )
             expect(section).toContain(
-                'async update(data: TInput | FormData, nextOptions?: NextOptions): Promise<TBase>',
+                'async update(data: TUpdateInput | FormData, nextOptions?: NextOptions): Promise<TBase>',
             )
             expect(section).not.toContain('async delete(')
             expect(section).not.toContain('async create(')
@@ -540,20 +543,20 @@ describe('ClientGenerator', () => {
                 "this.homepage = new SingleTypeAPI('homepage', this.config)",
             )
         })
-        it('should include type parameters for types with populatable fields (4 params)', () => {
+        it('should include type parameters for types with populatable fields (5 params)', () => {
             expect(output).toContain(
-                'items: CollectionAPI<Item, ItemInput, ItemFilters, ItemPopulateParam>',
+                'items: CollectionAPI<Item, ItemCreateInput, ItemUpdateInput, ItemFilters, ItemPopulateParam>',
             )
             expect(output).toContain(
-                'users: UsersPermissionsUserAPI<User, UserInput, UserFilters, UserPopulateParam>',
+                'users: UsersPermissionsUserAPI<User, UserCreateInput, UserUpdateInput, UserFilters, UserPopulateParam>',
             )
             expect(output).toContain(
-                'homepage: SingleTypeAPI<Homepage, HomepageInput, HomepageFilters, HomepagePopulateParam>',
+                'homepage: SingleTypeAPI<Homepage, HomepageCreateInput, HomepageUpdateInput, HomepageFilters, HomepagePopulateParam>',
             )
         })
-        it('should include type parameters for types without populatable fields (3 params)', () => {
+        it('should include type parameters for types without populatable fields (4 params)', () => {
             expect(output).toContain(
-                'categories: CollectionAPI<Category, CategoryInput, CategoryFilters>',
+                'categories: CollectionAPI<Category, CategoryCreateInput, CategoryUpdateInput, CategoryFilters>',
             )
         })
         it('should have setToken method', () => {
@@ -596,7 +599,7 @@ describe('ClientGenerator', () => {
             const result = new ClientGenerator().generate(schema)
 
             expect(result).toContain(
-                'campus: CollectionAPI<Campus, CampusInput, CampusFilters>',
+                'campus: CollectionAPI<Campus, CampusCreateInput, CampusUpdateInput, CampusFilters>',
             )
             expect(result).toContain(
                 "this.campus = new CollectionAPI('campus', this.config)",

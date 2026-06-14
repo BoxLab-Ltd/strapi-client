@@ -1,4 +1,9 @@
-import { Project, SourceFile } from 'ts-morph'
+import {
+    Project,
+    SourceFile,
+    OptionalKind,
+    PropertySignatureStructure,
+} from 'ts-morph'
 import {
     ParsedSchema,
     ContentType,
@@ -61,15 +66,15 @@ export class TypesGenerator {
             }
         }
 
-        // Component Input interfaces
+        // Component Create/Update Input interfaces
         for (const component of schema.components) {
-            this.addComponentInputInterface(sf, component)
+            this.addComponentInputInterfaces(sf, component)
         }
 
         // Dynamic-zone Input variants
         for (const component of schema.components) {
             if (dzComponentUids.has(component.uid)) {
-                this.addComponentDzInputAlias(sf, component)
+                this.addComponentDzInputAliases(sf, component)
             }
         }
 
@@ -78,9 +83,9 @@ export class TypesGenerator {
             this.addContentTypeInterface(sf, contentType)
         }
 
-        // Input type interfaces
+        // Create/Update Input type interfaces
         for (const contentType of schema.contentTypes) {
-            this.addInputTypeInterface(sf, contentType)
+            this.addInputTypeInterfaces(sf, contentType)
         }
 
         // *Defaults consts (emitted only for entities that declare defaults)
@@ -88,7 +93,7 @@ export class TypesGenerator {
             this.addDefaultsConst(
                 sf,
                 `${contentType.cleanName}Defaults`,
-                `${contentType.cleanName}Input`,
+                `${contentType.cleanName}CreateInput`,
                 contentType.attributes,
             )
         }
@@ -96,7 +101,7 @@ export class TypesGenerator {
             this.addDefaultsConst(
                 sf,
                 `${component.cleanName}Defaults`,
-                `${component.cleanName}Input`,
+                `${component.cleanName}CreateInput`,
                 component.attributes,
             )
         }
@@ -108,7 +113,7 @@ export class TypesGenerator {
                 this.addDefaultsConst(
                     sf,
                     `${component.cleanName}DzDefaults`,
-                    `${component.cleanName}DzInput`,
+                    `${component.cleanName}DzCreateInput`,
                     component.attributes,
                     [`__component: ${JSON.stringify(component.uid)}`],
                 )
@@ -405,15 +410,17 @@ type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry e
         })
     }
 
-    private addComponentDzInputAlias(
+    private addComponentDzInputAliases(
         sf: SourceFile,
         component: Component,
     ): void {
-        sf.addTypeAlias({
-            name: `${component.cleanName}DzInput`,
-            isExported: true,
-            type: `${component.cleanName}Input & { __component: '${component.uid}' }`,
-        })
+        for (const mode of ['Create', 'Update'] as const) {
+            sf.addTypeAlias({
+                name: `${component.cleanName}Dz${mode}Input`,
+                isExported: true,
+                type: `${component.cleanName}${mode}Input & { __component: '${component.uid}' }`,
+            })
+        }
     }
 
     private collectDzComponentUids(schema: ParsedSchema): Set<string> {
@@ -431,51 +438,77 @@ type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry e
         return uids
     }
 
-    private addComponentInputInterface(
+    private addComponentInputInterfaces(
         sf: SourceFile,
         component: Component,
     ): void {
-        sf.addInterface({
-            name: `${component.cleanName}Input`,
-            docs: [`Input type for creating/updating ${component.cleanName}`],
-            isExported: true,
-            properties: [
-                { name: 'id', type: 'number', hasQuestionToken: true },
-                ...component.attributes.map(attr => ({
-                    name: attr.name,
-                    type: this.transformer.toTypeScript(attr.type, false),
-                    hasQuestionToken: true,
-                    ...this.docsFor(attr),
-                })),
-                ...component.media.map(mediaField => ({
-                    name: mediaField.name,
-                    type: mediaField.multiple
-                        ? 'MultiMediaInput'
-                        : 'MediaInput',
-                    hasQuestionToken: true,
-                })),
-                ...component.relations.map(rel => ({
-                    name: rel.name,
-                    type: 'RelationInput',
-                    hasQuestionToken: true,
-                })),
-                ...component.components.map(compField => {
-                    const compType = compField.repeatable
-                        ? `${compField.componentType}Input[]`
-                        : `${compField.componentType}Input`
-                    return {
-                        name: compField.name,
-                        type: `${compType} | null`,
-                        hasQuestionToken: true,
-                    }
-                }),
-                ...component.dynamicZones.map(dzField => ({
-                    name: dzField.name,
-                    type: `(${dzField.componentTypes.map(ct => `${ct}DzInput`).join(' | ')})[] | null`,
-                    hasQuestionToken: true,
-                })),
-            ],
-        })
+        for (const mode of ['Create', 'Update'] as const) {
+            sf.addInterface({
+                name: `${component.cleanName}${mode}Input`,
+                docs: [`${mode} input for ${component.cleanName}`],
+                isExported: true,
+                properties: this.buildInputProperties(component, mode, true),
+            })
+        }
+    }
+
+    /**
+     * Shared property list for `*CreateInput` / `*UpdateInput`. In create mode a
+     * required *scalar* drops its `?` (and `| null`); update mode is fully
+     * partial (every key optional). Required-ness is enforced for scalars only —
+     * Strapi does not validate `required` on relations/media/components at the
+     * REST layer, so forcing those keys would reject payloads it accepts.
+     * Components / dynamic zones still split so their nested required scalars
+     * are enforced in the Create variant.
+     */
+    private buildInputProperties(
+        type: ContentType | Component,
+        mode: 'Create' | 'Update',
+        includeId: boolean,
+    ): OptionalKind<PropertySignatureStructure>[] {
+        const props: OptionalKind<PropertySignatureStructure>[] = []
+        if (includeId) {
+            props.push({ name: 'id', type: 'number', hasQuestionToken: true })
+        }
+        for (const attr of type.attributes) {
+            props.push({
+                name: attr.name,
+                type: this.transformer.toTypeScript(attr.type, attr.required),
+                hasQuestionToken: mode === 'Update' || !attr.required,
+                ...this.docsFor(attr),
+            })
+        }
+        for (const mediaField of type.media) {
+            props.push({
+                name: mediaField.name,
+                type: mediaField.multiple ? 'MultiMediaInput' : 'MediaInput',
+                hasQuestionToken: true,
+            })
+        }
+        for (const rel of type.relations) {
+            props.push({
+                name: rel.name,
+                type: 'RelationInput',
+                hasQuestionToken: true,
+            })
+        }
+        for (const compField of type.components) {
+            const inner = `${compField.componentType}${mode}Input`
+            const compType = compField.repeatable ? `${inner}[]` : inner
+            props.push({
+                name: compField.name,
+                type: `${compType} | null`,
+                hasQuestionToken: true,
+            })
+        }
+        for (const dzField of type.dynamicZones) {
+            props.push({
+                name: dzField.name,
+                type: `(${dzField.componentTypes.map(ct => `${ct}Dz${mode}Input`).join(' | ')})[] | null`,
+                hasQuestionToken: true,
+            })
+        }
+        return props
     }
 
     private addContentTypeInterface(
@@ -509,50 +542,18 @@ type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry e
         })
     }
 
-    private addInputTypeInterface(
+    private addInputTypeInterfaces(
         sf: SourceFile,
         contentType: ContentType,
     ): void {
-        sf.addInterface({
-            name: `${contentType.cleanName}Input`,
-            docs: [`Input type for creating/updating ${contentType.cleanName}`],
-            isExported: true,
-            properties: [
-                ...contentType.attributes.map(attr => ({
-                    name: attr.name,
-                    type: this.transformer.toTypeScript(attr.type, false),
-                    hasQuestionToken: true,
-                    ...this.docsFor(attr),
-                })),
-                ...contentType.media.map(mediaField => ({
-                    name: mediaField.name,
-                    type: mediaField.multiple
-                        ? 'MultiMediaInput'
-                        : 'MediaInput',
-                    hasQuestionToken: true,
-                })),
-                ...contentType.relations.map(rel => ({
-                    name: rel.name,
-                    type: 'RelationInput',
-                    hasQuestionToken: true,
-                })),
-                ...contentType.components.map(compField => {
-                    const compType = compField.repeatable
-                        ? `${compField.componentType}Input[]`
-                        : `${compField.componentType}Input`
-                    return {
-                        name: compField.name,
-                        type: `${compType} | null`,
-                        hasQuestionToken: true,
-                    }
-                }),
-                ...contentType.dynamicZones.map(dzField => ({
-                    name: dzField.name,
-                    type: `(${dzField.componentTypes.map(ct => `${ct}DzInput`).join(' | ')})[] | null`,
-                    hasQuestionToken: true,
-                })),
-            ],
-        })
+        for (const mode of ['Create', 'Update'] as const) {
+            sf.addInterface({
+                name: `${contentType.cleanName}${mode}Input`,
+                docs: [`${mode} input for ${contentType.cleanName}`],
+                isExported: true,
+                properties: this.buildInputProperties(contentType, mode, false),
+            })
+        }
     }
 
     private addPopulateParams(sf: SourceFile, schema: ParsedSchema): void {

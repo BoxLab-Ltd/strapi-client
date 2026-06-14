@@ -368,52 +368,69 @@ describe('TypesGenerator', () => {
     // ================================================================
     // Input types
     // ================================================================
-    describe('Input types', () => {
-        it('should generate CategoryInput with optional fields', () => {
-            expect(output).toContain('export interface CategoryInput {')
-            expect(output).toContain('  name?: string')
+    describe('Input types (Create / Update split)', () => {
+        it('CreateInput enforces a required scalar; UpdateInput is fully partial', () => {
+            expect(output).toContain('export interface CategoryCreateInput {')
+            expect(output).toContain('  name: string') // required in Create
+            expect(output).toContain('export interface CategoryUpdateInput {')
+            expect(output).toContain('  name?: string') // optional in Update
         })
 
-        it('should generate ItemInput with media as MediaInput and relation as RelationInput', () => {
-            expect(output).toContain('export interface ItemInput {')
-            expect(output).toContain('  title?: string')
-            expect(output).toContain('  price?: number')
+        it('ItemCreateInput: required scalar enforced, optional nullable, media/relation optional', () => {
+            expect(output).toContain('export interface ItemCreateInput {')
+            expect(output).toContain('  title: string') // required
+            expect(output).toContain('  price?: number | null') // optional scalar
             expect(output).toContain('  image?: MediaInput')
             expect(output).toContain('  category?: RelationInput')
+            expect(output).toContain('export interface ItemUpdateInput {')
+            expect(output).toContain('  title?: string') // partial in Update
         })
 
-        it('should generate ProjectInput with multi-media as MultiMediaInput and oneToMany as RelationInput', () => {
-            expect(output).toContain('export interface ProjectInput {')
+        it('ProjectInput: multi-media, relations, and component field uses the matching variant', () => {
+            expect(output).toContain('export interface ProjectCreateInput {')
             expect(output).toContain('  images?: MultiMediaInput')
             expect(output).toContain('  items?: RelationInput')
             expect(output).toContain('  owner?: RelationInput')
+            expect(output).toContain(
+                '  config?: ProjectConfigCreateInput[] | null',
+            )
+            expect(output).toContain(
+                '  config?: ProjectConfigUpdateInput[] | null',
+            )
         })
 
-        it('should generate ProjectConfigInput WITHOUT __component (regular component, not DZ)', () => {
-            expect(output).toContain('export interface ProjectConfigInput {')
+        it('ProjectConfigCreateInput has no __component (regular component, not DZ)', () => {
+            expect(output).toContain(
+                'export interface ProjectConfigCreateInput {',
+            )
             expect(output).toContain('  id?: number')
-            expect(output).toContain('  key?: string')
-            expect(output).toContain('  value?: string')
+            expect(output).toContain('  key: string') // required scalar
             expect(output).not.toMatch(
-                /interface ProjectConfigInput \{[^}]*__component/,
+                /interface ProjectConfigCreateInput \{[^}]*__component/,
             )
-            expect(output).not.toContain('export type ProjectConfigDzInput')
-        })
-
-        it('should generate LandingHeroDzInput / LandingFeatureDzInput aliases for DZ payloads', () => {
-            expect(output).toContain(
-                "export type LandingHeroDzInput = LandingHeroInput & { __component: 'landing.hero' }",
-            )
-            expect(output).toContain(
-                "export type LandingFeatureDzInput = LandingFeatureInput & { __component: 'landing.feature' }",
+            expect(output).not.toContain(
+                'export type ProjectConfigDzCreateInput',
             )
         })
 
-        it('ProjectInput.sections (DZ) should accept *DzInput union, not *Input', () => {
-            // After the fix, DZ inputs require __component via the *DzInput aliases.
-            // Plain *Input must NOT appear in the DZ field type.
+        it('generates Dz Create/Update aliases for DZ payloads', () => {
+            expect(output).toContain(
+                "export type LandingHeroDzCreateInput = LandingHeroCreateInput & { __component: 'landing.hero' }",
+            )
+            expect(output).toContain(
+                "export type LandingHeroDzUpdateInput = LandingHeroUpdateInput & { __component: 'landing.hero' }",
+            )
+            expect(output).toContain(
+                "export type LandingFeatureDzCreateInput = LandingFeatureCreateInput & { __component: 'landing.feature' }",
+            )
+        })
+
+        it('DZ field uses the *DzCreateInput / *DzUpdateInput unions', () => {
             expect(output).toMatch(
-                /sections\?: \(LandingHeroDzInput \| LandingFeatureDzInput\)\[\] \| null/,
+                /sections\?: \(LandingHeroDzCreateInput \| LandingFeatureDzCreateInput\)\[\] \| null/,
+            )
+            expect(output).toMatch(
+                /sections\?: \(LandingHeroDzUpdateInput \| LandingFeatureDzUpdateInput\)\[\] \| null/,
             )
         })
     })
@@ -658,7 +675,7 @@ describe('TypesGenerator', () => {
         it('attaches constraint JSDoc to input-type properties', () => {
             const input = sliceInterface(
                 constrainedOutput,
-                'export interface ProductInput {',
+                'export interface ProductCreateInput {',
             )
             expect(input).toContain('@minimum 0')
             expect(input).toContain('@maximum 100')
@@ -668,7 +685,7 @@ describe('TypesGenerator', () => {
 
         it('emits a *Defaults const for content types with defaults', () => {
             expect(constrainedOutput).toContain(
-                'export const ProductDefaults = { status: "draft", featured: false } as const satisfies Partial<ProductInput>',
+                'export const ProductDefaults = { status: "draft", featured: false } as const satisfies Partial<ProductCreateInput>',
             )
         })
 
@@ -720,10 +737,10 @@ describe('TypesGenerator', () => {
 
             const out = new TypesGenerator().generate(schema)
             expect(out).toContain(
-                'export const LandingHeroDefaults = { title: "Hello" } as const satisfies Partial<LandingHeroInput>',
+                'export const LandingHeroDefaults = { title: "Hello" } as const satisfies Partial<LandingHeroCreateInput>',
             )
             expect(out).toContain(
-                'export const LandingHeroDzDefaults = { __component: "landing.hero", title: "Hello" } as const satisfies Partial<LandingHeroDzInput>',
+                'export const LandingHeroDzDefaults = { __component: "landing.hero", title: "Hello" } as const satisfies Partial<LandingHeroDzCreateInput>',
             )
         })
     })

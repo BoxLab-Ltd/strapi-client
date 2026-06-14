@@ -106,6 +106,10 @@ async function _assert() {
   // Bug D: the inherited base create stays typed, and the custom route that
   // reused the \`create\` action is exposed under the mangled name.
   await client.items.create({ title: 'x' })
+  // @ts-expect-error - create requires the required scalar \`title\`
+  await client.items.create({})
+  // update is partial — an empty object is fine
+  await client.items.update('id', {})
   await client.items.createItem()
 }
 void _assert
