@@ -5,7 +5,7 @@ This guide walks you through installing `strapi-typed-client`, registering the S
 ## Requirements
 
 - **Strapi v5** (Strapi v4 is not supported)
-- **Node.js >= 18**
+- **Node.js >= 22**
 
 ## Installation
 

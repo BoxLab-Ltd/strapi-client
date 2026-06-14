@@ -69,7 +69,7 @@ articles[0].category.name // fully typed
 ## Requirements
 
 - **Strapi v5**
-- **Node.js >= 18**
+- **Node.js >= 22**
 
 ## Documentation
 
