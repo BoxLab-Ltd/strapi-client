@@ -16,7 +16,6 @@ describe('file-writer header readers', () => {
             path.join(dir, 'client.ts'),
             [
                 '/* eslint-disable */',
-                '// @ts-nocheck',
                 'export const SCHEMA_HASH = "deadbeef"',
                 'export const GENERATOR_VERSION = "1.5.2"',
                 'export class StrapiClient {}',

@@ -34,7 +34,6 @@ export class TypesGenerator {
         // Header comments
         sf.addStatements([
             '/* eslint-disable */',
-            '// @ts-nocheck',
             '// Auto-generated TypeScript types from Strapi schema',
             '// Do not edit manually',
         ])
