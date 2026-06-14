@@ -413,6 +413,23 @@ describe('ClientGenerator', () => {
         })
     })
 
+    describe('strict-mode clean output (type-clean wave)', () => {
+        it('base API endpoint is protected so custom subclasses can read it', () => {
+            expect(output).toContain('protected endpoint: string,')
+            expect(output).not.toContain('private endpoint: string,')
+        })
+        it('fetchOptions type allows the Next.js `next` property', () => {
+            expect(output).toContain(
+                'const fetchOptions: RequestInit & { next?: unknown }',
+            )
+        })
+        it('stringifyQuery is called with a Record-compatible cast', () => {
+            expect(output).toContain(
+                'stringifyQuery(params as Record<string, unknown>)',
+            )
+        })
+    })
+
     describe('CollectionAPI findWithMeta', () => {
         it('should generate findWithMeta method', () => {
             const section = output.slice(
