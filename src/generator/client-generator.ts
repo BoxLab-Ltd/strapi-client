@@ -733,7 +733,7 @@ class BaseAPI {
       }
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions: RequestInit & { next?: unknown } = {
       ...options,
       headers,
       ...(this.config.credentials && { credentials: this.config.credentials }),
@@ -745,7 +745,7 @@ class BaseAPI {
         fetchOptions.next = {
           ...(nextOptions.revalidate !== undefined && { revalidate: nextOptions.revalidate }),
           ...(nextOptions.tags && { tags: nextOptions.tags }),
-        } as any
+        }
       }
       if (nextOptions.cache) {
         fetchOptions.cache = nextOptions.cache
@@ -844,7 +844,7 @@ class BaseAPI {
 
   protected buildQueryString(params?: QueryParams): string {
     if (!params) return ''
-    const query = stringifyQuery(params)
+    const query = stringifyQuery(params as Record<string, unknown>)
     return query ? \`?\${query}\` : ''
   }
 }
@@ -889,7 +889,7 @@ class CollectionAPI<
   TPopulateKeys extends Record<string, any> = Record<string, any>
 > extends BaseAPI {
   constructor(
-    private endpoint: string,
+    protected endpoint: string,
     config: StrapiClientConfig
   ) {
     super(config)
@@ -1052,7 +1052,7 @@ class SingleTypeAPI<
   TPopulateKeys extends Record<string, any> = Record<string, any>
 > extends BaseAPI {
   constructor(
-    private endpoint: string,
+    protected endpoint: string,
     config: StrapiClientConfig
   ) {
     super(config)
