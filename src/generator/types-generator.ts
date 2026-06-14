@@ -680,7 +680,7 @@ type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry e
         const name = type.cleanName
 
         if (!this.hasAnyPopulatableFields(type)) {
-            return `export type ${name}GetPayload<P extends { populate?: any } = {}> = ${name} & {}`
+            return `export type ${name}GetPayload<P extends { populate?: unknown } = {}> = ${name} & {}`
         }
 
         const allPopFields = this.buildAllPopulatedFields(type)
@@ -688,7 +688,7 @@ type _ApplyFields<TFull, TBase, TEntry> = TEntry extends true ? TFull : TEntry e
         const perFieldPop = this.buildPerFieldPopulate(type)
 
         return `// Payload type for ${name} with populate support
-export type ${name}GetPayload<P extends { populate?: ${name}PopulateParam | (keyof ${name}PopulateParam & string)[] | '*' | true } = {}> =
+export type ${name}GetPayload<P extends { populate?: unknown } = {}> =
   ${name} &
   (P extends { populate: infer Pop }
     ? Pop extends '*' | true
