@@ -546,7 +546,9 @@ describe('ClientGenerator', () => {
         it('should have validateSchema method', () => {
             expect(output).toContain('async validateSchema()')
             expect(output).toContain('SCHEMA_HASH')
-            expect(output).toContain('schema-hash')
+            // must hit the real plugin route, not the legacy `strapi-types` prefix
+            expect(output).toContain('/api/strapi-typed-client/schema-hash')
+            expect(output).not.toContain('/api/strapi-types/schema-hash')
         })
 
         it('should use pluralName as the property name and endpoint URL', () => {

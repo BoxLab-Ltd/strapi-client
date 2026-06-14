@@ -90,3 +90,9 @@ export const CRUD_METHODS = {
  * Package version (injected at build time or read from package.json)
  */
 export const PACKAGE_NAME = 'strapi-typed-client'
+
+/**
+ * Prefix for the plugin's content-api routes. This is the Strapi plugin id
+ * (`/api/<plugin-id>/...`), which is not necessarily the npm package name.
+ */
+export const SCHEMA_API_PREFIX = '/api/strapi-typed-client'

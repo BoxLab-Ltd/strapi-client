@@ -4,14 +4,14 @@
  * Exposes Strapi schema through REST API for automatic TypeScript type generation.
  *
  * Endpoints:
- * - GET /api/strapi-types/schema - Returns full schema with hash
- * - GET /api/strapi-types/schema-hash - Returns only hash (lightweight)
+ * - GET /api/strapi-typed-client/schema - Returns full schema with hash
+ * - GET /api/strapi-typed-client/schema-hash - Returns only hash (lightweight)
  *
  * Usage in Strapi:
  * ```typescript
  * // config/plugins.ts
  * export default {
- *   'strapi-types': {
+ *   'strapi-typed-client': {
  *     enabled: true,
  *     config: {
  *       requireAuth: false, // Optional: allow unauthenticated access

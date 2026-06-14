@@ -62,4 +62,5 @@ export {
     RELATION_TYPES,
     CRUD_METHODS,
     PACKAGE_NAME,
+    SCHEMA_API_PREFIX,
 } from './constants.js'

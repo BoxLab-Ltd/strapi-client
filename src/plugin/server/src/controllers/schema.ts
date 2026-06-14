@@ -74,7 +74,7 @@ async function validateApiToken(
 
 export default ({ strapi }: { strapi: StrapiInstance }) => ({
     /**
-     * GET /api/strapi-types/schema
+     * GET /api/strapi-typed-client/schema
      * Returns the full schema with hash
      */
     async getSchema(ctx: StrapiContext) {
@@ -106,7 +106,7 @@ export default ({ strapi }: { strapi: StrapiInstance }) => ({
     },
 
     /**
-     * GET /api/strapi-types/schema-hash
+     * GET /api/strapi-typed-client/schema-hash
      * Returns only the schema hash (lightweight)
      */
     async getSchemaHash(ctx: StrapiContext) {
@@ -138,7 +138,7 @@ export default ({ strapi }: { strapi: StrapiInstance }) => ({
     },
 
     /**
-     * GET /api/strapi-types/schema-watch
+     * GET /api/strapi-typed-client/schema-watch
      * SSE stream that sends the current hash on connect.
      * When Strapi restarts the connection drops — the client
      * reconnects and gets the (possibly new) hash automatically.

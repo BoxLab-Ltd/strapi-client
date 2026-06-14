@@ -9,7 +9,11 @@ import { CustomApiGenerator } from './custom-api-generator.js'
 import { PluginApiGenerator } from './plugin-api-generator.js'
 import { PLUGIN_REGISTRY } from './plugin-registry.js'
 import { STRAPI_ERROR_REGISTRY } from './strapi-error-registry.js'
-import { toCamelCase, toPascalCase } from '../shared/index.js'
+import {
+    toCamelCase,
+    toPascalCase,
+    SCHEMA_API_PREFIX,
+} from '../shared/index.js'
 import type {
     ParsedEndpoint,
     ExtraControllerType,
@@ -1394,7 +1398,7 @@ ${standaloneInits}
     error?: string
   }> {
     try {
-      const response = await fetch(\`\${this.config.baseURL}/api/strapi-types/schema-hash\`)
+      const response = await fetch(\`\${this.config.baseURL}${SCHEMA_API_PREFIX}/schema-hash\`)
       if (!response.ok) {
         return {
           valid: false,

@@ -6,6 +6,7 @@ import type {
     SchemaResponse,
     HashResponse,
 } from '../../shared/strapi-schema-types.js'
+import { SCHEMA_API_PREFIX } from '../../shared/index.js'
 
 export type { SchemaResponse, HashResponse }
 
@@ -28,7 +29,7 @@ export class ApiClient {
 
     /** Full URL for the SSE schema-watch endpoint */
     get sseUrl(): string {
-        return `${this.baseUrl}/api/strapi-typed-client/schema-watch`
+        return `${this.baseUrl}${SCHEMA_API_PREFIX}/schema-watch`
     }
 
     /** Build request headers (auth + content-type) */
@@ -47,7 +48,7 @@ export class ApiClient {
      */
     async getSchema(): Promise<SchemaResponse> {
         const response = await this.request<SchemaResponse>(
-            '/api/strapi-typed-client/schema',
+            `${SCHEMA_API_PREFIX}/schema`,
         )
         return response
     }
@@ -57,7 +58,7 @@ export class ApiClient {
      */
     async getSchemaHash(): Promise<HashResponse> {
         const response = await this.request<HashResponse>(
-            '/api/strapi-typed-client/schema-hash',
+            `${SCHEMA_API_PREFIX}/schema-hash`,
         )
         return response
     }
