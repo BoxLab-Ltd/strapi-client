@@ -1,6 +1,6 @@
 {
     "name": "strapi-typed-client",
-    "version": "1.6.0",
+    "version": "1.6.1",
     "type": "module",
     "description": "Type-safe Strapi v5 client with automatic TypeScript codegen and populate type inference",
     "main": "dist/index.js",
