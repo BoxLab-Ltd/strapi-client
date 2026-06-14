@@ -84,7 +84,6 @@ export class ClientGenerator {
         // readLocalGeneratorVersion).
         sf.addStatements([
             '/* eslint-disable */',
-            '// @ts-nocheck',
             '// Auto-generated Strapi API client',
             '// Do not edit manually',
             `export const SCHEMA_HASH = ${JSON.stringify(schemaHash)}`,

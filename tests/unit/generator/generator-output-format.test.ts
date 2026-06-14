@@ -23,6 +23,32 @@ const mockSchema: ParsedSchema = {
             components: [],
             dynamicZones: [],
         },
+        // Strapi v5 always ships the users-permissions User; the generated
+        // client always references it (auth API), so a realistic schema must
+        // include it for the output to type-check.
+        {
+            name: 'PluginUsersPermissionsUser',
+            cleanName: 'User',
+            collectionName: 'up_users',
+            singularName: 'user',
+            pluralName: 'users',
+            kind: 'collection',
+            attributes: [
+                { name: 'username', type: { kind: 'string' }, required: true },
+            ],
+            relations: [
+                {
+                    name: 'item',
+                    relationType: 'manyToOne',
+                    target: 'api::item.item',
+                    targetType: 'Item',
+                    required: false,
+                },
+            ],
+            media: [],
+            components: [],
+            dynamicZones: [],
+        },
     ],
     components: [],
 }

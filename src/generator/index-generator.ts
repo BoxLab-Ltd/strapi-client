@@ -1,7 +1,6 @@
 export class IndexGenerator {
     generate(): string {
         return `/* eslint-disable */
-// @ts-nocheck
 // Auto-generated index file
 // Do not edit manually
 

@@ -4,121 +4,112 @@ import * as os from 'os'
 import * as path from 'path'
 import * as ts from 'typescript'
 import { Generator } from '../../../src/generator/index.js'
-import type { ParsedSchema } from '../../../src/schema-types.js'
+import type { ParsedSchema, ContentType } from '../../../src/schema-types.js'
 import type { ParsedEndpoint } from '../../../src/shared/endpoint-types.js'
+import { mockSchema } from './fixtures/mock-schema.js'
 
 /**
  * Type-clean guarantee: the generated `--format ts` client must compile under
- * strict mode WITHOUT its `@ts-nocheck` header. This guards the bugs cleared in
- * the v2.0 type-clean wave: private endpoint, fetchOptions.next, QueryParams
- * cast, the TPopulate / GetPayload overload constraint ("Bug B"), and the
- * custom-route CRUD-name collision ("Bug D", via the endpoints below).
+ * strict mode WITHOUT its `@ts-nocheck` header. This is the test-suite mirror
+ * of the fail-on-diagnostic guard in `Generator.compileFiles`, and guards the
+ * v2.0 type-clean wave: private endpoint, fetchOptions.next, QueryParams cast,
+ * the TPopulate / GetPayload overload constraint ("Bug B"), and the
+ * custom-route CRUD-name collision ("Bug D").
  *
- * The appended assertion module also pins the *behaviour* the fixes had to
- * preserve: populate narrowing still works, invalid populate keys are still
- * rejected (encoded as `@ts-expect-error`, which fails the build if unused),
- * and a custom route reusing `create` is name-mangled (`createArticle`) rather
- * than shadowing the inherited base method.
+ * It runs against the rich shared fixture (components, dynamic zones, single
+ * types, single + multiple media, relations of several cardinalities) plus an
+ * extra content type exercising enums, oneToOne / manyToMany, blocks and json,
+ * so a broad slice of generated shapes is covered — not just content types.
+ *
+ * The appended assertion module also pins the behaviour the fixes preserve:
+ * populate narrowing still works, invalid populate keys are still rejected
+ * (via `@ts-expect-error`, which fails the build if unused), and a custom route
+ * reusing `create` is mangled (`createItem`) rather than shadowing the base.
  */
 
-const rel = (name: string, target: string, targetType: string) => ({
-    name,
-    type: 'manyToOne' as const,
-    target,
-    targetType,
-    targetName: targetType,
-    isArray: false,
-})
-
-const schema: ParsedSchema = {
-    contentTypes: [
+// Extra content type covering shapes the shared fixture doesn't: an enum, a
+// oneToOne and a manyToMany relation, blocks/json scalars, and multi-media.
+const widget: ContentType = {
+    name: 'ApiWidgetWidget',
+    cleanName: 'Widget',
+    collectionName: 'widgets',
+    singularName: 'widget',
+    pluralName: 'widgets',
+    kind: 'collection',
+    attributes: [
         {
-            name: 'ApiArticleArticle',
-            cleanName: 'Article',
-            collectionName: 'articles',
-            singularName: 'article',
-            pluralName: 'articles',
-            kind: 'collection',
-            attributes: [
-                { name: 'title', type: { kind: 'string' }, required: true },
-            ],
-            relations: [rel('category', 'api::category.category', 'Category')],
-            media: [{ name: 'cover', multiple: false }],
-            components: [],
-            dynamicZones: [],
+            name: 'status',
+            type: { kind: 'enumeration', values: ['draft', 'published'] },
+            required: false,
+        },
+        { name: 'body', type: { kind: 'blocks' }, required: false },
+        { name: 'meta', type: { kind: 'json' }, required: false },
+        { name: 'when', type: { kind: 'datetime' }, required: false },
+    ],
+    relations: [
+        {
+            name: 'primaryCategory',
+            relationType: 'oneToOne',
+            target: 'api::category.category',
+            targetType: 'Category',
+            required: false,
         },
         {
-            name: 'ApiCategoryCategory',
-            cleanName: 'Category',
-            collectionName: 'categories',
-            singularName: 'category',
-            pluralName: 'categories',
-            kind: 'collection',
-            attributes: [
-                { name: 'name', type: { kind: 'string' }, required: true },
-            ],
-            relations: [],
-            media: [],
-            components: [],
-            dynamicZones: [],
-        },
-        {
-            name: 'PluginUsersPermissionsUser',
-            cleanName: 'User',
-            collectionName: 'up_users',
-            singularName: 'user',
-            pluralName: 'users',
-            kind: 'collection',
-            attributes: [
-                { name: 'username', type: { kind: 'string' }, required: true },
-            ],
-            relations: [rel('category', 'api::category.category', 'Category')],
-            media: [],
-            components: [],
-            dynamicZones: [],
+            name: 'relatedItems',
+            relationType: 'manyToMany',
+            target: 'api::item.item',
+            targetType: 'Item',
+            required: false,
         },
     ],
+    media: [{ name: 'gallery', multiple: true, required: false }],
     components: [],
+    dynamicZones: [],
 }
 
-// Exercises populate narrowing + invalid-key rejection on the generated client.
+const schema: ParsedSchema = {
+    contentTypes: [...mockSchema.contentTypes, widget],
+    components: mockSchema.components,
+}
+
+// A custom route that reuses the `create` CRUD action on the item controller.
+const endpoints: ParsedEndpoint[] = [
+    {
+        method: 'POST',
+        path: '/items/special',
+        handler: 'api::item.item.create',
+        controller: 'item',
+        action: 'create',
+    },
+]
+
+// Exercises populate narrowing, invalid-key rejection, and the Bug D mangle
+// against the generated client.
 const ASSERTIONS = `import { StrapiClient } from './client'
-import type { Article } from './types'
 declare const client: StrapiClient
 async function _assert() {
   // populate narrowing preserved: the populated relation key is present
-  const a = await client.articles.find({ populate: { category: true } })
+  const a = await client.items.find({ populate: { category: true } })
   type ElA = (typeof a)[number]
   const _cat: ElA['category'] = null as any
   void _cat
   // @ts-expect-error - an invalid populate key must be rejected
-  await client.articles.find({ populate: { notAKey: true } })
-  await client.articles.find({ populate: '*' })
-  await client.articles.find({ populate: true })
+  await client.items.find({ populate: { notAKey: true } })
+  await client.items.find({ populate: '*' })
+  await client.items.find({ populate: true })
   // without populate the relation key is absent from the base result
-  const b = await client.articles.find()
+  const b = await client.items.find()
   type ElB = (typeof b)[number]
   // @ts-expect-error - relations are absent without populate
   const _noCat: ElB['category'] = null as any
   void _noCat
   // Bug D: the inherited base create stays typed, and the custom route that
   // reused the \`create\` action is exposed under the mangled name.
-  await client.articles.create({ title: 'x' })
-  await client.articles.createArticle()
+  await client.items.create({ title: 'x' })
+  await client.items.createItem()
 }
 void _assert
 `
-
-const endpoints: ParsedEndpoint[] = [
-    // a custom route that reuses the `create` CRUD action on the article controller
-    {
-        method: 'POST',
-        path: '/articles/special',
-        handler: 'api::article.article.create',
-        controller: 'article',
-        action: 'create',
-    },
-]
 
 describe('generated client type-checks clean without @ts-nocheck', () => {
     let tmpDir: string
@@ -140,12 +131,11 @@ describe('generated client type-checks clean without @ts-nocheck', () => {
         const files = ['types.ts', 'client.ts', 'index.ts'].map(f =>
             path.join(tmpDir, f),
         )
-        // strip the `/* eslint-disable */` + `// @ts-nocheck` header so tsc checks
+        // strip the `/* eslint-disable */` header so tsc actually checks
         for (const f of files) {
             const src = fs
                 .readFileSync(f, 'utf-8')
                 .replace(/^\/\* eslint-disable \*\/\n?/m, '')
-                .replace(/^\/\/ @ts-nocheck\n?/m, '')
             fs.writeFileSync(f, src)
         }
 
@@ -180,11 +170,11 @@ describe('generated client type-checks clean without @ts-nocheck', () => {
     })
 
     it('name-mangles a custom route that reuses a base CRUD action (Bug D)', () => {
-        expect(clientSource).toContain('async createArticle(')
-        const articleApi =
-            clientSource.match(/class ArticleAPI extends[\s\S]*?\n}/)?.[0] ?? ''
-        expect(articleApi).toContain('async createArticle(')
+        expect(clientSource).toContain('async createItem(')
+        const itemApi =
+            clientSource.match(/class ItemAPI extends[\s\S]*?\n}/)?.[0] ?? ''
+        expect(itemApi).toContain('async createItem(')
         // the inherited base `create` must NOT be overridden by the custom route
-        expect(articleApi).not.toContain('async create(')
+        expect(itemApi).not.toContain('async create(')
     })
 })
