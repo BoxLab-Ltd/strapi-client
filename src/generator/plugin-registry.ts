@@ -35,6 +35,11 @@ export interface PluginEndpoint {
     responseType: string
     /** Optional one-line description used as a JSDoc comment on the method. */
     description?: string
+    /**
+     * Optional former name kept as a `@deprecated` alias that delegates to
+     * `methodName`. Used to rename a method without breaking consumers.
+     */
+    deprecatedAlias?: string
 }
 
 export interface PluginContract {
@@ -84,7 +89,8 @@ export const PLUGIN_REGISTRY: PluginContract[] = [
                 description: 'Get a single uploaded file by numeric id.',
             },
             {
-                methodName: 'destroy',
+                methodName: 'delete',
+                deprecatedAlias: 'destroy',
                 method: 'DELETE',
                 path: '/upload/files/:id',
                 paramTypes: { id: 'number' },

@@ -51,11 +51,32 @@ ${methods}
 
         const indentedUrl = urlLines.map(line => `    ${line}`).join('\n')
 
-        return `${docComment}
+        const method = `${docComment}
   async ${ep.methodName}(${params}): Promise<${ep.responseType}> {
 ${indentedUrl}
     return this.request<${ep.responseType}>(url, ${reqOptions}, nextOptions, '${errorPrefix}')
   }`
+
+        if (!ep.deprecatedAlias) return method
+
+        return `${method}
+
+  /**
+   * @deprecated Use \`${ep.methodName}()\` instead. Will be removed in a future major.
+   */
+  async ${ep.deprecatedAlias}(${params}): Promise<${ep.responseType}> {
+    return this.${ep.methodName}(${this.buildArgNames(ep)})
+  }`
+    }
+
+    /** Argument names (no types) for delegating to the renamed method. */
+    private buildArgNames(ep: PluginEndpoint): string {
+        const names: string[] = []
+        if (ep.paramTypes) names.push(...Object.keys(ep.paramTypes))
+        if (ep.bodyType) names.push('body')
+        if (ep.queryType) names.push('params')
+        names.push('nextOptions')
+        return names.join(', ')
     }
 
     private buildParameters(ep: PluginEndpoint): string {

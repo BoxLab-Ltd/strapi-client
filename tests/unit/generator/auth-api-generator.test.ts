@@ -52,9 +52,22 @@ describe('generateAuthTypes', () => {
         expect(result).toContain('  jwt: string')
         expect(result).toContain('  user: User')
     })
+
+    it('should generate ForgotPasswordResponse interface (ok: true)', () => {
+        expect(result).toContain('export interface ForgotPasswordResponse {')
+        expect(result).toContain('  ok: true')
+    })
+
+    it('should generate SendEmailConfirmationResponse interface', () => {
+        expect(result).toContain(
+            'export interface SendEmailConfirmationResponse {',
+        )
+        expect(result).toContain('  email: string')
+        expect(result).toContain('  sent: boolean')
+    })
 })
 
-describe('generateAuthApiClass - hardcoded (no routes)', () => {
+describe('generateAuthApiClass - default routes (no args)', () => {
     const result = generator.generateAuthApiClass()
 
     it('should generate AuthAPI class extending BaseAPI', () => {
@@ -63,20 +76,20 @@ describe('generateAuthApiClass - hardcoded (no routes)', () => {
         expect(result).toContain('super(config)')
     })
 
-    it('should generate login method (POST /api/auth/local)', () => {
-        expect(result).toContain(
-            'async login(credentials: LoginCredentials): Promise<AuthResponse>',
-        )
-        expect(result).toContain('POST /api/auth/local')
+    it('should generate login method (POST /auth/local)', () => {
+        expect(result).toContain('async login(')
+        expect(result).toContain('data: LoginCredentials')
+        expect(result).toContain('Promise<AuthResponse>')
+        expect(result).toContain('POST /auth/local')
         expect(result).toContain("method: 'POST'")
-        expect(result).toContain('body: JSON.stringify(credentials)')
+        expect(result).toContain('body: JSON.stringify(data)')
     })
 
-    it('should generate register method (POST /api/auth/local/register)', () => {
-        expect(result).toContain(
-            'async register(data: RegisterData): Promise<AuthResponse>',
-        )
-        expect(result).toContain('POST /api/auth/local/register')
+    it('should generate register method (POST /auth/local/register)', () => {
+        expect(result).toContain('async register(')
+        expect(result).toContain('data: RegisterData')
+        expect(result).toContain('Promise<AuthResponse>')
+        expect(result).toContain('POST /auth/local/register')
         expect(result).toContain('body: JSON.stringify(data)')
     })
 
@@ -119,7 +132,7 @@ describe('generateAuthApiClass - hardcoded (no routes)', () => {
         expect(result).toContain(
             "updateMe<const TPopulate extends UserPopulateParam, const TFields extends Exclude<keyof User & string, '__typename'> = never>(",
         )
-        expect(result).toContain('    data: Partial<User>,')
+        expect(result).toContain('    data: UserUpdateInput,')
         expect(result).toContain(
             '    params: { populate: TPopulate } & QueryParams<User, UserFilters, TPopulate, TFields>,',
         )
@@ -136,7 +149,7 @@ describe('generateAuthApiClass - hardcoded (no routes)', () => {
 
         // Implementation signature
         expect(result).toContain(
-            'async updateMe(data: Partial<User>, params?: any, nextOptions?: any): Promise<any>',
+            'async updateMe(data: UserUpdateInput, params?: any, nextOptions?: any): Promise<any>',
         )
         expect(result).toContain("method: 'PUT'")
         expect(result).toContain('body: JSON.stringify(data)')
@@ -149,50 +162,53 @@ describe('generateAuthApiClass - hardcoded (no routes)', () => {
         expect(result).toContain('nextOptions?: NextOptions')
         expect(result).toContain('): Promise<AuthResponse>')
         expect(result).toContain('OAuth callback')
-        expect(result).toContain('GET /api/auth/:provider/callback')
+        expect(result).toContain('GET /auth/:provider/callback')
     })
 
-    it('should generate logout method', () => {
-        expect(result).toContain('async logout(): Promise<void>')
+    it('should generate clearToken method with a deprecated logout alias', () => {
+        expect(result).toContain('async clearToken(): Promise<void>')
         expect(result).toContain('this.config.token = undefined')
+        // logout stays as a thin @deprecated delegate
+        const logoutIdx = result.indexOf('async logout(): Promise<void>')
+        expect(logoutIdx).toBeGreaterThan(-1)
+        expect(result.slice(0, logoutIdx)).toContain('@deprecated')
+        expect(result.slice(logoutIdx)).toContain('return this.clearToken()')
     })
 
     it('should generate forgotPassword method', () => {
-        expect(result).toContain(
-            'async forgotPassword(data: ForgotPasswordData): Promise<{ ok: boolean }>',
-        )
-        expect(result).toContain('POST /api/auth/forgot-password')
+        expect(result).toContain('async forgotPassword(')
+        expect(result).toContain('data: ForgotPasswordData')
+        expect(result).toContain('Promise<ForgotPasswordResponse>')
+        expect(result).toContain('POST /auth/forgot-password')
         expect(result).toContain('body: JSON.stringify(data)')
     })
 
     it('should generate resetPassword method', () => {
-        expect(result).toContain(
-            'async resetPassword(data: ResetPasswordData): Promise<AuthResponse>',
-        )
-        expect(result).toContain('POST /api/auth/reset-password')
+        expect(result).toContain('async resetPassword(')
+        expect(result).toContain('data: ResetPasswordData')
+        expect(result).toContain('Promise<AuthResponse>')
+        expect(result).toContain('POST /auth/reset-password')
     })
 
     it('should generate changePassword method', () => {
-        expect(result).toContain(
-            'async changePassword(data: ChangePasswordData): Promise<AuthResponse>',
-        )
-        expect(result).toContain('POST /api/auth/change-password')
+        expect(result).toContain('async changePassword(')
+        expect(result).toContain('data: ChangePasswordData')
+        expect(result).toContain('Promise<AuthResponse>')
+        expect(result).toContain('POST /auth/change-password')
     })
 
     it('should generate confirmEmail method', () => {
         expect(result).toContain(
             'async confirmEmail(confirmationToken: string, nextOptions?: NextOptions): Promise<EmailConfirmationResponse>',
         )
-        expect(result).toContain(
-            'GET /api/auth/email-confirmation?confirmation=TOKEN',
-        )
+        expect(result).toContain('GET /auth/email-confirmation')
     })
 
     it('should generate sendEmailConfirmation method', () => {
         expect(result).toContain(
-            'async sendEmailConfirmation(email: string): Promise<{ ok: boolean }>',
+            'async sendEmailConfirmation(email: string): Promise<SendEmailConfirmationResponse>',
         )
-        expect(result).toContain('POST /api/auth/send-email-confirmation')
+        expect(result).toContain('POST /auth/send-email-confirmation')
         expect(result).toContain('body: JSON.stringify({ email })')
     })
 })
@@ -347,11 +363,11 @@ describe('generateAuthApiClass - dynamic (with routes)', () => {
         expect(result).toContain(
             "updateMe<const TPopulate extends UserPopulateParam, const TFields extends Exclude<keyof User & string, '__typename'> = never>(",
         )
-        expect(result).toContain('    data: Partial<User>,')
+        expect(result).toContain('    data: UserUpdateInput,')
 
         // Implementation
         expect(result).toContain(
-            'async updateMe(data: Partial<User>, params?: any, nextOptions?: any): Promise<any>',
+            'async updateMe(data: UserUpdateInput, params?: any, nextOptions?: any): Promise<any>',
         )
         expect(result).toContain("method: 'PUT'")
         expect(result).toContain('body: JSON.stringify(data)')

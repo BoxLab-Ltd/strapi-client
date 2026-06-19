@@ -89,24 +89,37 @@ describe('PluginApiGenerator', () => {
         })
     })
 
-    describe('destroy() method', () => {
+    describe('delete() method', () => {
         it('has correct signature with id: number returning MediaFile', () => {
             expect(output).toContain(
-                'async destroy(id: number, nextOptions?: NextOptions): Promise<MediaFile>',
+                'async delete(id: number, nextOptions?: NextOptions): Promise<MediaFile>',
             )
         })
 
         it('uses DELETE method', () => {
-            const segment = output.slice(output.indexOf('async destroy('))
+            const segment = output.slice(output.indexOf('async delete('))
             expect(segment).toContain("method: 'DELETE'")
         })
 
         it('does not include a body parameter', () => {
             const sig = output.slice(
-                output.indexOf('async destroy('),
-                output.indexOf(')', output.indexOf('async destroy(')) + 1,
+                output.indexOf('async delete('),
+                output.indexOf(')', output.indexOf('async delete(')) + 1,
             )
             expect(sig).not.toContain('body:')
+        })
+    })
+
+    describe('destroy() deprecated alias', () => {
+        it('keeps a @deprecated destroy() that delegates to delete()', () => {
+            const idx = output.indexOf('async destroy(')
+            expect(idx).toBeGreaterThan(-1)
+            expect(output.slice(0, idx)).toMatch(/@deprecated[^]*?delete\(\)/)
+            expect(output).toContain(
+                'async destroy(id: number, nextOptions?: NextOptions): Promise<MediaFile>',
+            )
+            const body = output.slice(idx)
+            expect(body).toContain('return this.delete(id, nextOptions)')
         })
     })
 

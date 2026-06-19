@@ -1359,7 +1359,11 @@ export class StrapiClient {
   private config: StrapiClientConfig
 
   // Auth API for users-permissions plugin
-  authentication: AuthAPI
+  auth: AuthAPI
+  /** @deprecated Use \`auth\` instead. Will be removed in a future major. */
+  get authentication(): AuthAPI {
+    return this.auth
+  }
 ${pluginDeclarationsBlock}
 ${propertyDeclarations}
 ${standaloneDeclarations}
@@ -1367,7 +1371,7 @@ ${standaloneDeclarations}
     this.config = config
 
     // Initialize Auth API
-    this.authentication = new AuthAPI(this.config)
+    this.auth = new AuthAPI(this.config)
 ${pluginInitsBlock}
 ${propertyInits}
 ${standaloneInits}

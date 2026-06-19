@@ -223,9 +223,13 @@ Unlike collection endpoints, the upload plugin returns a flat array — there is
 const file = await client.upload.findOne(42)
 console.log(file.url)
 
-const deleted = await client.upload.destroy(42)
+const deleted = await client.upload.delete(42)
 // `deleted` is the MediaFile that was just removed
 ```
+
+::: warning Renamed in v2
+`client.upload.destroy()` is now `client.upload.delete()`. The old name remains as a `@deprecated` alias and will be removed in a future major.
+:::
 
 ::: warning Numeric ids
 Files use a numeric `id`, not a `documentId` — this is a quirk of the upload plugin (it pre-dates Strapi's document model). Do not pass strings:
@@ -243,7 +247,7 @@ Upload methods throw the same `StrapiError` / `StrapiConnectionError` as the res
 
 ```ts
 try {
-    await client.upload.destroy(42)
+    await client.upload.delete(42)
 } catch (err) {
     if (err instanceof StrapiError && err.status === 403) {
         // missing permission to delete uploads

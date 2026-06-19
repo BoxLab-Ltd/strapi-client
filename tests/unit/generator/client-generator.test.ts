@@ -527,8 +527,14 @@ describe('ClientGenerator', () => {
         it('should generate StrapiClient class', () => {
             expect(output).toContain('export class StrapiClient')
         })
-        it('should have authentication property of AuthAPI type', () => {
-            expect(output).toContain('authentication: AuthAPI')
+        it('should have auth property of AuthAPI type', () => {
+            expect(output).toContain('auth: AuthAPI')
+            expect(output).toContain('this.auth = new AuthAPI(this.config)')
+        })
+        it('keeps a @deprecated authentication getter aliasing auth', () => {
+            expect(output).toContain('get authentication(): AuthAPI')
+            const idx = output.indexOf('get authentication(): AuthAPI')
+            expect(output.slice(0, idx)).toContain('@deprecated')
         })
         it('should create CollectionAPI instances for collection types (items, categories)', () => {
             expect(output).toContain(
@@ -726,11 +732,11 @@ describe('ClientGenerator', () => {
             expect(updateMeOverloads).not.toBeNull()
             expect(updateMeOverloads!.length).toBe(3)
         })
-        it('updateMe() should accept Partial<User> as data parameter', () => {
+        it('updateMe() should accept UserUpdateInput as data parameter', () => {
             const authSection = output.slice(
                 output.indexOf('class AuthAPI extends BaseAPI'),
             )
-            expect(authSection).toContain('data: Partial<User>,')
+            expect(authSection).toContain('data: UserUpdateInput,')
         })
     })
 

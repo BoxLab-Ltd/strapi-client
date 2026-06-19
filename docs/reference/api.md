@@ -58,7 +58,7 @@ strapi.setToken(token: string): void
 
 ```ts
 // Set token after login
-const { jwt } = await strapi.authentication.login({
+const { jwt } = await strapi.auth.login({
     identifier: 'user@example.com',
     password: 'password',
 })
@@ -353,10 +353,14 @@ Single types do not have `findOne`, `create`, or `delete` methods. Use `find` to
 
 ## Authentication API
 
-The authentication API is available at `strapi.authentication` and provides methods for the Strapi Users & Permissions plugin.
+The authentication API is available at `strapi.auth` and provides methods for the Strapi Users & Permissions plugin.
 
 ::: tip
-The exact methods available on `strapi.authentication` depend on your Strapi project's auth and user controller routes. Common methods like `login`, `register`, `me`, and `forgotPassword` are generated automatically when the corresponding routes exist.
+The exact methods available on `strapi.auth` depend on your Strapi project's auth and user controller routes. Common methods like `login`, `register`, `me`, and `forgotPassword` are generated automatically when the corresponding routes exist.
+:::
+
+::: warning Renamed in v2
+`strapi.authentication` is now `strapi.auth`, and the client-side `logout()` helper is now `clearToken()`. The old names remain as `@deprecated` aliases and will be removed in a future major.
 :::
 
 ## QueryParams

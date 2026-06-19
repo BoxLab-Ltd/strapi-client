@@ -23,10 +23,10 @@ describe('PLUGIN_REGISTRY', () => {
             expect(upload?.errorPrefix).toBe('Strapi Upload')
         })
 
-        it('has 4 endpoints (upload, find, findOne, destroy)', () => {
+        it('has 4 endpoints (upload, find, findOne, delete)', () => {
             expect(upload?.endpoints).toHaveLength(4)
             const names = upload?.endpoints.map(e => e.methodName)
-            expect(names).toEqual(['upload', 'find', 'findOne', 'destroy'])
+            expect(names).toEqual(['upload', 'find', 'findOne', 'delete'])
         })
 
         it('upload endpoint is POST /upload with FormData body and MediaFile[] response', () => {
@@ -55,12 +55,13 @@ describe('PLUGIN_REGISTRY', () => {
             expect(ep?.responseType).toBe('MediaFile')
         })
 
-        it('destroy endpoint is DELETE /upload/files/:id with id: number', () => {
-            const ep = upload?.endpoints.find(e => e.methodName === 'destroy')
+        it('delete endpoint is DELETE /upload/files/:id with id: number (keeps destroy alias)', () => {
+            const ep = upload?.endpoints.find(e => e.methodName === 'delete')
             expect(ep?.method).toBe('DELETE')
             expect(ep?.path).toBe('/upload/files/:id')
             expect(ep?.paramTypes).toEqual({ id: 'number' })
             expect(ep?.responseType).toBe('MediaFile')
+            expect(ep?.deprecatedAlias).toBe('destroy')
         })
     })
 })
