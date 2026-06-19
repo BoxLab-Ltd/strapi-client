@@ -3,7 +3,6 @@
  */
 
 import * as fs from 'fs'
-import { createRequire } from 'module'
 import * as path from 'path'
 
 export interface WriteResult {
@@ -77,19 +76,22 @@ export function writeFiles(
 }
 
 /**
- * Resolve default output directory: package dist/ in node_modules.
- * Falls back to ./dist when the package can't be resolved (e.g. local dev).
+ * Require an explicit output directory. The generated client is meant to be
+ * written into your source tree and committed — there is no implicit
+ * node_modules default (a reinstall would wipe it). Throws an actionable error
+ * when no output was given, so both the CLI and programmatic callers fail loudly
+ * instead of silently writing somewhere unexpected.
  */
-export function getDefaultOutputDir(): string {
-    try {
-        const _require = createRequire(
-            path.resolve(process.cwd(), 'package.json'),
+export function requireOutputDir(output: string | undefined): string {
+    if (!output || !output.trim()) {
+        throw new Error(
+            'No output directory specified.\n' +
+                'Pass --output pointing at your source tree, e.g.:\n' +
+                '  strapi-types generate --output ./src/strapi --format ts\n' +
+                'Generated code is meant to be committed to your repo, not written into node_modules.',
         )
-        const pkgJsonPath = _require.resolve('strapi-typed-client/package.json')
-        return path.join(path.dirname(pkgJsonPath), 'dist')
-    } catch {
-        return './dist'
     }
+    return output.trim()
 }
 
 const HEADER_HEAD_BYTES = 512

@@ -7,7 +7,7 @@ import { createApiClient } from '../utils/api-client.js'
 import {
     readLocalSchemaHash,
     readLocalGeneratorVersion,
-    getDefaultOutputDir,
+    requireOutputDir,
 } from '../utils/file-writer.js'
 import { getGeneratorVersion } from '../../shared/version.js'
 
@@ -29,9 +29,9 @@ export interface CheckResult {
  * Check if local types are in sync with remote schema
  */
 export async function check(options: CheckOptions): Promise<CheckResult> {
-    const outputDir = options.output || getDefaultOutputDir()
-
     try {
+        const outputDir = requireOutputDir(options.output)
+
         // Read local hash
         const localHash = readLocalSchemaHash(outputDir)
 
@@ -135,7 +135,7 @@ export function createCheckCommand(program: {
         )
         .option(
             '-o, --output <path>',
-            'Output directory to check (default: node_modules/strapi-typed-client/dist)',
+            'Output directory to check (required) — where you generated, e.g. ./src/strapi',
         )
         .option('-s, --silent', 'Suppress output messages')
         .action(async (opts: CheckCliOptions) => {

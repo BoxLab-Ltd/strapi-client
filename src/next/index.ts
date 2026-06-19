@@ -4,7 +4,7 @@
  * Usage in next.config.ts:
  *
  *   import { withStrapiTypes } from 'strapi-typed-client/next'
- *   export default withStrapiTypes()(nextConfig)
+ *   export default withStrapiTypes({ output: './src/strapi', format: 'ts' })(nextConfig)
  */
 
 import { execFileSync } from 'child_process'
@@ -27,14 +27,21 @@ function getPackageDir(): string {
     return path.dirname(pkgJsonPath)
 }
 
-function defaultOutputDir(): string {
-    return path.join(getPackageDir(), 'dist')
-}
-
-function resolveOutputDir(config: StrapiTypesConfig): string {
-    return config.output
-        ? path.resolve(process.cwd(), config.output)
-        : defaultOutputDir()
+/**
+ * Resolve the output dir from config. An explicit `output` is required — the
+ * generated client is meant to be committed to the consumer's source tree, not
+ * written into node_modules (a reinstall would wipe it). Throws an actionable
+ * error when `output` is missing.
+ */
+export function resolveOutputDir(config: StrapiTypesConfig): string {
+    if (!config.output || !config.output.trim()) {
+        throw new Error(
+            '[strapi-typed-client] withStrapiTypes requires an `output` directory.\n' +
+                "Point it at your source tree, e.g. withStrapiTypes({ output: './src/strapi', format: 'ts' }).\n" +
+                'Generated code is meant to be committed to your repo, not written into node_modules.',
+        )
+    }
+    return path.resolve(process.cwd(), config.output.trim())
 }
 
 /**
@@ -282,12 +289,25 @@ export function withStrapiTypes(config?: StrapiTypesConfig) {
     return <T>(nextConfig: T): T => {
         const cfg = config ?? {}
 
-        if (process.env.NODE_ENV === 'development' && isMainNextProcess()) {
-            // next dev — SSE watcher (only one process via PID lock)
+        const isDev =
+            process.env.NODE_ENV === 'development' && isMainNextProcess()
+        const isBuild = process.argv.includes('build')
+
+        // Generating modes need an explicit `output`; validate synchronously
+        // here so a missing config fails fast and clearly during next.config
+        // evaluation, rather than as an unhandled rejection inside the watcher.
+        if (isDev || isBuild) {
+            resolveOutputDir(cfg)
+        }
+
+        if (isDev) {
+            // next dev — SSE watcher (only one process via PID lock).
+            // Fire-and-forget: surface any async failure cleanly instead of as
+            // an unhandled rejection.
             if (acquireWatchLock()) {
-                startDevWatch(cfg)
+                startDevWatch(cfg).catch(err => fail((err as Error).message))
             }
-        } else if (process.argv.includes('build')) {
+        } else if (isBuild) {
             // next build — one-time sync generation
             runBuildGenerate(cfg)
         }

@@ -8,7 +8,7 @@ import { createApiClient } from '../utils/api-client.js'
 import {
     readLocalSchemaHash,
     readLocalGeneratorVersion,
-    getDefaultOutputDir,
+    requireOutputDir,
 } from '../utils/file-writer.js'
 import { Generator } from '../../generator/index.js'
 import { transformSchema } from '../../core/schema-transformer.js'
@@ -87,11 +87,11 @@ export function isGeneratedOutputFresh(params: {
 export async function generate(
     options: GenerateOptions,
 ): Promise<GenerateResult> {
-    const outputDir = options.output || getDefaultOutputDir()
     const format: 'js' | 'ts' = options.format ?? 'js'
     const filesWritten: string[] = []
 
     try {
+        const outputDir = requireOutputDir(options.output)
         assertOutputDirForFormat(outputDir, format)
 
         // Create API client
@@ -292,7 +292,7 @@ export function createGenerateCommand(program: {
         )
         .option(
             '-o, --output <path>',
-            'Output directory (default: node_modules/strapi-typed-client/dist)',
+            'Output directory (required) — your source tree, e.g. ./src/strapi',
         )
         .option('-s, --silent', 'Suppress output messages')
         .option('-f, --force', 'Force regeneration even if schema unchanged')

@@ -5,7 +5,34 @@ import * as path from 'path'
 import {
     readLocalSchemaHash,
     readLocalGeneratorVersion,
+    requireOutputDir,
 } from '../../../src/cli/utils/file-writer.js'
+
+describe('requireOutputDir', () => {
+    it('returns the path when an output dir is given', () => {
+        expect(requireOutputDir('./src/strapi')).toBe('./src/strapi')
+    })
+
+    it('trims surrounding whitespace from the returned path', () => {
+        expect(requireOutputDir('  ./src/strapi  ')).toBe('./src/strapi')
+    })
+
+    it('throws an actionable error when output is missing', () => {
+        expect(() => requireOutputDir(undefined)).toThrow(
+            /No output directory specified/,
+        )
+        expect(() => requireOutputDir(undefined)).toThrow(/--output/)
+    })
+
+    it('throws on an empty / whitespace output', () => {
+        expect(() => requireOutputDir('')).toThrow(
+            /No output directory specified/,
+        )
+        expect(() => requireOutputDir('   ')).toThrow(
+            /No output directory specified/,
+        )
+    })
+})
 
 describe('file-writer header readers', () => {
     let dir: string

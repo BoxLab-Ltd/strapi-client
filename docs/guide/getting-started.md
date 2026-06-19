@@ -117,11 +117,7 @@ import { StrapiClient } from '@/strapi'
 
 Committing the generated code keeps it through reinstalls and surfaces schema changes as reviewable diffs. The client is self-contained, so your app gains no runtime dependency on `strapi-typed-client`.
 
-`--format` defaults to compiled `.js` + `.d.ts` (no build step required). Pass `--format ts` to emit raw `.ts` for bundlers and monorepos that compile their own sources.
-
-::: tip Quick trial
-Omit `--output` to write into `node_modules` and import from the bare `'strapi-typed-client'`. Fine for a spike, but a reinstall wipes it — see [CLI](/guide/cli).
-:::
+`--format` defaults to compiled `.js` + `.d.ts` (no build step required). Pass `--format ts` to emit raw `.ts` for bundlers and monorepos that compile their own sources. Either way, `--output` is required and must point at your source tree.
 
 ::: warning Regenerate after upgrading
 The generated client records the `strapi-typed-client` version that produced it. After upgrading the package, run `generate` again so committed types pick up generator fixes — `strapi-types check` warns when they drift.
@@ -149,15 +145,11 @@ console.log(articles) // Article[]
 ```
 
 ::: info Import paths in these docs
-Examples import from `@/strapi` — the directory you generated into. If you used the quick `node_modules` mode instead, import from the bare `'strapi-typed-client'`.
+Examples import from `@/strapi` — the directory you generated into.
 :::
 
 ::: info
 The client uses the global `fetch` by default. In Next.js, this means you automatically get all of Next.js's fetch optimizations (caching, deduplication, revalidation). See the [Next.js integration guide](/guide/nextjs) for details.
-:::
-
-::: tip What if I skip the generate step?
-The package ships with a stub that lets `import { StrapiClient } from 'strapi-typed-client'` resolve without errors. However, creating a `StrapiClient` instance will throw a clear error reminding you to run `npx strapi-types generate`.
 :::
 
 ## Next Steps

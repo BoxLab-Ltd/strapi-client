@@ -3,8 +3,6 @@
     "version": "1.6.1",
     "type": "module",
     "description": "Type-safe Strapi v5 client with automatic TypeScript codegen and populate type inference",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
     "bin": {
         "strapi-types": "./dist/cli/index.js"
     },
@@ -42,11 +40,6 @@
         ]
     },
     "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js",
-            "default": "./dist/index.js"
-        },
         "./plugin": {
             "types": "./dist/plugin/index.d.ts",
             "import": "./dist/plugin/index.js",

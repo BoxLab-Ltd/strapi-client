@@ -31,7 +31,7 @@ Generate into your source tree and commit the result:
 npx strapi-types generate --url http://localhost:1337 --output ./src/strapi
 ```
 
-Committed types survive reinstalls and show up as reviewable diffs. (Omit `--output` for a quick trial that writes into `node_modules` instead — ephemeral, wiped on reinstall.)
+Committed types survive reinstalls and show up as reviewable diffs.
 
 ### 4. Use
 

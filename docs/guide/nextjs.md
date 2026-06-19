@@ -17,6 +17,7 @@ const nextConfig = {
 export default withStrapiTypes({
     strapiUrl: process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1337',
     token: process.env.STRAPI_TOKEN,
+    output: './src/strapi',
 })(nextConfig)
 ```
 
@@ -29,17 +30,17 @@ export default withStrapiTypes({
 
 ### Options
 
-| Option      | Description                                                                                         | Default                                     |
-| ----------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `strapiUrl` | Strapi server URL                                                                                   | `STRAPI_URL` env or `http://localhost:1337` |
-| `token`     | API token                                                                                           | `STRAPI_TOKEN` env                          |
-| `silent`    | Suppress generation logs                                                                            | `false`                                     |
-| `format`    | `js` (compiled, default) or `ts` (raw `.ts` emitted into your source tree for monorepos)            | `js`                                        |
-| `output`    | Output directory. Required when `format: 'ts'` — must point at your source tree, not `node_modules` | Package dir under `node_modules`            |
+| Option      | Description                                                                                                               | Default                                     |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `strapiUrl` | Strapi server URL                                                                                                         | `STRAPI_URL` env or `http://localhost:1337` |
+| `token`     | API token                                                                                                                 | `STRAPI_TOKEN` env                          |
+| `silent`    | Suppress generation logs                                                                                                  | `false`                                     |
+| `format`    | `js` (compiled `.js` + `.d.ts`, default) or `ts` (raw `.ts` for bundlers/monorepos)                                       | `js`                                        |
+| `output`    | Output directory — must point at your source tree (e.g. `./src/strapi`). The plugin throws a clear error if it is missing | required                                    |
 
-### Source-tree output for monorepos
+### Raw `.ts` output for bundlers and monorepos
 
-In monorepos where the shared types package compiles its own sources, emit raw `.ts` into the source tree instead of the default `node_modules` dist:
+The generated client is always written into your source tree and committed. With `format: 'ts'` the plugin emits raw `.ts` instead of compiled `.js` + `.d.ts` — useful for monorepos where the shared types package compiles its own sources, or bundlers that prefer source:
 
 ```ts
 export default withStrapiTypes({
@@ -171,7 +172,7 @@ In a Next.js App Router Server Component:
 
 ```tsx
 // app/articles/page.tsx
-import { StrapiClient } from 'strapi-typed-client'
+import { StrapiClient } from '@/strapi'
 
 const strapi = new StrapiClient({
     baseURL: process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1337',
@@ -209,7 +210,7 @@ Use the client in Server Actions for mutations:
 // app/articles/actions.ts
 'use server'
 
-import { StrapiClient } from 'strapi-typed-client'
+import { StrapiClient } from '@/strapi'
 import { revalidateTag } from 'next/cache'
 
 const strapi = new StrapiClient({

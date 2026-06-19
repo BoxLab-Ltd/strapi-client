@@ -3,10 +3,7 @@
  */
 
 import { createApiClient } from '../utils/api-client.js'
-import {
-    readLocalSchemaHash,
-    getDefaultOutputDir,
-} from '../utils/file-writer.js'
+import { readLocalSchemaHash, requireOutputDir } from '../utils/file-writer.js'
 import { SseConnection } from '../../shared/sse-client.js'
 import { generate } from './generate.js'
 
@@ -21,7 +18,7 @@ export interface WatchOptions {
  * Watch for schema changes via SSE
  */
 export async function watch(options: WatchOptions): Promise<void> {
-    const outputDir = options.output || getDefaultOutputDir()
+    const outputDir = requireOutputDir(options.output)
 
     const client = createApiClient({
         url: options.url,
@@ -141,15 +138,20 @@ export function createWatchCommand(program: {
         )
         .option(
             '-o, --output <path>',
-            'Output directory (default: node_modules/strapi-typed-client/dist)',
+            'Output directory (required) — your source tree, e.g. ./src/strapi',
         )
         .option('-s, --silent', 'Suppress regeneration messages')
         .action(async (opts: WatchOptions) => {
-            await watch({
-                url: opts.url,
-                token: opts.token,
-                output: opts.output,
-                silent: opts.silent,
-            })
+            try {
+                await watch({
+                    url: opts.url,
+                    token: opts.token,
+                    output: opts.output,
+                    silent: opts.silent,
+                })
+            } catch (err) {
+                console.error((err as Error).message)
+                process.exit(1)
+            }
         })
 }
