@@ -4,6 +4,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+import { readClientHeaderConst } from '../../shared/client-header.js'
 
 export interface WriteResult {
     path: string
@@ -94,40 +95,12 @@ export function requireOutputDir(output: string | undefined): string {
     return output.trim()
 }
 
-const HEADER_HEAD_BYTES = 512
-
 /**
- * Read the first N bytes of a file without loading the whole thing.
- * SCHEMA_HASH is emitted at the top of client.ts/client.js so this is enough.
- */
-function readFileHead(filePath: string, bytes: number): string | null {
-    let fd: number | undefined
-    try {
-        fd = fs.openSync(filePath, 'r')
-        const buf = Buffer.alloc(bytes)
-        const read = fs.readSync(fd, buf, 0, bytes, 0)
-        return buf.slice(0, read).toString('utf-8')
-    } catch {
-        return null
-    } finally {
-        if (fd !== undefined) {
-            try {
-                fs.closeSync(fd)
-            } catch {
-                /* ignore */
-            }
-        }
-    }
-}
-
-/**
- * Read schema hash from the generated client. Tries client.ts (raw, .ts mode)
- * first, then client.js (compiled, .js mode). SCHEMA_HASH is baked into the
- * client at generation time as the first export — reading the file head is
- * enough and avoids parsing the full client.
+ * Read schema hash from the generated client. SCHEMA_HASH is baked into the
+ * client at generation time as the first export.
  */
 export function readLocalSchemaHash(outputDir: string): string | null {
-    return readLocalHeaderConst(outputDir, 'SCHEMA_HASH')
+    return readClientHeaderConst(outputDir, 'SCHEMA_HASH')
 }
 
 /**
@@ -137,21 +110,5 @@ export function readLocalSchemaHash(outputDir: string): string | null {
  * clients generated before version stamping was introduced).
  */
 export function readLocalGeneratorVersion(outputDir: string): string | null {
-    return readLocalHeaderConst(outputDir, 'GENERATOR_VERSION')
-}
-
-/**
- * Read a `export const <NAME> = '<value>'` baked into the generated client
- * header. Both SCHEMA_HASH and GENERATOR_VERSION live in the first bytes of
- * client.ts/client.js, so reading the head is enough.
- */
-function readLocalHeaderConst(outputDir: string, name: string): string | null {
-    const re = new RegExp(`${name}\\s*=\\s*['"]([^'"]*)['"]`)
-    for (const file of ['client.ts', 'client.js']) {
-        const head = readFileHead(path.join(outputDir, file), HEADER_HEAD_BYTES)
-        if (!head) continue
-        const match = head.match(re)
-        if (match) return match[1]
-    }
-    return null
+    return readClientHeaderConst(outputDir, 'GENERATOR_VERSION')
 }

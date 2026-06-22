@@ -11,6 +11,8 @@ import { execFileSync } from 'child_process'
 import * as fs from 'fs'
 import { createRequire } from 'module'
 import * as path from 'path'
+import { readClientHeaderConst } from '../shared/client-header.js'
+import { getGeneratorVersion } from '../shared/version.js'
 
 export interface StrapiTypesConfig {
     strapiUrl?: string
@@ -42,37 +44,6 @@ export function resolveOutputDir(config: StrapiTypesConfig): string {
         )
     }
     return path.resolve(process.cwd(), config.output.trim())
-}
-
-/**
- * Read schema hash baked at the top of the generated client. Slices the
- * first few hundred bytes so we don't load the full client just to compare
- * hashes. Tries client.ts (raw, .ts mode) then client.js (compiled, .js mode).
- */
-function readLocalHash(outputDir: string): string | null {
-    for (const file of ['client.ts', 'client.js']) {
-        const p = path.join(outputDir, file)
-        let fd: number | undefined
-        try {
-            fd = fs.openSync(p, 'r')
-            const buf = Buffer.alloc(300)
-            const read = fs.readSync(fd, buf, 0, 300, 0)
-            const head = buf.slice(0, read).toString('utf-8')
-            const match = head.match(/SCHEMA_HASH\s*=\s*['"]([^'"]+)['"]/)
-            if (match) return match[1]
-        } catch {
-            /* try next candidate */
-        } finally {
-            if (fd !== undefined) {
-                try {
-                    fs.closeSync(fd)
-                } catch {
-                    /* ignore */
-                }
-            }
-        }
-    }
-    return null
 }
 
 function generatedFilesExist(outputDir: string, format: 'js' | 'ts'): boolean {
@@ -129,9 +100,28 @@ async function startDevWatch(config: StrapiTypesConfig): Promise<void> {
 
     const client = createApiClient({ url, token })
 
-    let lastHash = generatedFilesExist(outputDir, format)
-        ? readLocalHash(outputDir)
-        : null
+    // Force a one-time regen if the committed client was produced by a
+    // different generator version (e.g. the package was upgraded). Its schema
+    // hash may still match the remote, but the OUTPUT shape can be stale — the
+    // bare CLI generate/check path version-checks via isGeneratedOutputFresh,
+    // and the dev watcher must do the same or upgraders silently keep old types.
+    const localVersion = readClientHeaderConst(outputDir, 'GENERATOR_VERSION')
+    const installedVersion = getGeneratorVersion()
+    const versionStale =
+        !!localVersion &&
+        !!installedVersion &&
+        localVersion !== installedVersion
+    if (versionStale) {
+        info(
+            silent,
+            `Generator updated (v${localVersion} → v${installedVersion}); regenerating types`,
+        )
+    }
+
+    let lastHash =
+        !versionStale && generatedFilesExist(outputDir, format)
+            ? readClientHeaderConst(outputDir, 'SCHEMA_HASH')
+            : null
     let generating = false
 
     info(silent, `Watching for schema changes ${dim('(SSE)')}`)
