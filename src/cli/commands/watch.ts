@@ -3,6 +3,7 @@
  */
 
 import { createApiClient } from '../utils/api-client.js'
+import type { Command } from 'commander'
 import { readLocalSchemaHash, requireOutputDir } from '../utils/file-writer.js'
 import { SseConnection } from '../../shared/sse-client.js'
 import { generate } from './generate.js'
@@ -120,9 +121,7 @@ export async function watch(options: WatchOptions): Promise<void> {
 /**
  * CLI handler for watch command
  */
-export function createWatchCommand(program: {
-    command: (...args: any[]) => any
-}): void {
+export function createWatchCommand(program: Command): void {
     program
         .command('watch')
         .description(

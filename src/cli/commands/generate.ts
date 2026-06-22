@@ -4,6 +4,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+import type { Command } from 'commander'
 import { createApiClient } from '../utils/api-client.js'
 import {
     readLocalSchemaHash,
@@ -276,9 +277,7 @@ interface GenerateCliOptions {
 /**
  * CLI handler for generate command
  */
-export function createGenerateCommand(program: {
-    command: (...args: any[]) => any
-}): void {
+export function createGenerateCommand(program: Command): void {
     program
         .command('generate')
         .description('Generate TypeScript types from Strapi schema')

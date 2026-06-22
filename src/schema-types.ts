@@ -66,7 +66,7 @@ export interface Attribute {
     type: AttributeType
     required: boolean
     unique?: boolean
-    defaultValue?: any
+    defaultValue?: unknown
     constraints?: AttributeConstraints
 }
 

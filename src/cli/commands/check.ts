@@ -3,6 +3,7 @@
  * Returns exit code 0 if in sync, 1 if out of sync
  */
 
+import type { Command } from 'commander'
 import { createApiClient } from '../utils/api-client.js'
 import {
     readLocalSchemaHash,
@@ -117,9 +118,7 @@ interface CheckCliOptions {
 /**
  * CLI handler for check command
  */
-export function createCheckCommand(program: {
-    command: (...args: any[]) => any
-}): void {
+export function createCheckCommand(program: Command): void {
     program
         .command('check')
         .description(
