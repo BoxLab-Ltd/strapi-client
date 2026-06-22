@@ -382,6 +382,26 @@ import type { ${filterImports.join(', ')} } from './types.js'`
             ],
         })
 
+        // RequestConfig — the outgoing request as seen by onRequest
+        sf.addInterface({
+            name: 'RequestConfig',
+            isExported: true,
+            docs: [
+                'The outgoing request, passed to `onRequest`. Mutate it in place or return a replacement to change the URL, method, headers, or body before the request is sent.',
+            ],
+            properties: [
+                { name: 'url', type: 'string' },
+                { name: 'method', type: 'string', hasQuestionToken: true },
+                { name: 'headers', type: 'Record<string, string>' },
+                {
+                    name: 'body',
+                    type: 'BodyInit | null',
+                    hasQuestionToken: true,
+                },
+                { name: 'signal', type: 'AbortSignal', hasQuestionToken: true },
+            ],
+        })
+
         // StrapiClientConfig interface
         sf.addInterface({
             name: 'StrapiClientConfig',
@@ -392,6 +412,9 @@ import type { ${filterImports.join(', ')} } from './types.js'`
                     name: 'token',
                     type: 'string',
                     hasQuestionToken: true,
+                    docs: [
+                        '@deprecated Prefer `onRequest` to attach the Authorization header dynamically (e.g. token refresh, reading from storage). Still read by `request()` for now.',
+                    ],
                 },
                 {
                     name: 'fetch',
@@ -422,6 +445,30 @@ import type { ${filterImports.join(', ')} } from './types.js'`
                     hasQuestionToken: true,
                     docs: [
                         'Enable schema validation on init (dev mode). Logs warning if types are outdated.',
+                    ],
+                },
+                {
+                    name: 'onRequest',
+                    type: '(req: RequestConfig) => RequestConfig | void | Promise<RequestConfig | void>',
+                    hasQuestionToken: true,
+                    docs: [
+                        'Called before each request, after headers/timeout are assembled. Mutate `req` in place or return a replacement to change the URL, method, headers, or body. Use it to attach a token from any async source (replaces `setToken`). If you swap the body to/from FormData you must set the Content-Type header yourself.',
+                    ],
+                },
+                {
+                    name: 'onResponse',
+                    type: '(res: Response) => void | Promise<void>',
+                    hasQuestionToken: true,
+                    docs: [
+                        'Called after a successful (2xx) response, before its body is parsed. The body stream is single-use — call `res.clone()` if you need to read it. Error responses go through `onError`, not `onResponse`.',
+                    ],
+                },
+                {
+                    name: 'onError',
+                    type: '(err: StrapiError | StrapiConnectionError) => void | Promise<void>',
+                    hasQuestionToken: true,
+                    docs: [
+                        'Called on every connection/HTTP error before it is thrown (e.g. clear a stored token or redirect on 401). The error is always re-thrown afterward.',
                     ],
                 },
             ],
@@ -760,6 +807,25 @@ class BaseAPI {
       timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
     }
 
+    // onRequest interceptor — mutate/replace the outgoing request before fetch
+    if (this.config.onRequest) {
+      const reqConfig: RequestConfig = {
+        url,
+        method: fetchOptions.method ?? 'GET',
+        headers: fetchOptions.headers as Record<string, string>,
+        body: fetchOptions.body ?? undefined,
+        signal: fetchOptions.signal as AbortSignal | undefined,
+      }
+      const result = await this.config.onRequest(reqConfig)
+      const eff = result || reqConfig
+      url = eff.url
+      fetchOptions.method = eff.method
+      fetchOptions.headers = eff.headers
+      fetchOptions.body = eff.body
+      // Don't clobber the timeout signal if the hook didn't set one
+      if (eff.signal) fetchOptions.signal = eff.signal
+    }
+
     let response: Response
     try {
       response = await fetchFn(url, fetchOptions)
@@ -769,39 +835,39 @@ class BaseAPI {
       const baseURL = this.config.baseURL
       const msg = error?.message || String(error)
 
-      // Timeout (AbortController abort)
+      let connErr: StrapiConnectionError
       if (error?.name === 'AbortError') {
-        throw new StrapiConnectionError(
+        // Timeout (AbortController abort)
+        connErr = new StrapiConnectionError(
           \`Request timed out after \${this.config.timeout}ms. URL: \${url}\`,
           url,
           error
         )
-      }
-
-      // Connection refused
-      if (msg.includes('ECONNREFUSED')) {
-        throw new StrapiConnectionError(
+      } else if (msg.includes('ECONNREFUSED')) {
+        // Connection refused
+        connErr = new StrapiConnectionError(
           \`Could not connect to Strapi at \${baseURL}. Is the server running?\`,
           url,
           error
         )
-      }
-
-      // DNS resolution failure
-      if (msg.includes('ENOTFOUND') || msg.includes('getaddrinfo')) {
-        throw new StrapiConnectionError(
+      } else if (msg.includes('ENOTFOUND') || msg.includes('getaddrinfo')) {
+        // DNS resolution failure
+        connErr = new StrapiConnectionError(
           \`Could not resolve host. Check your baseURL: \${baseURL}\`,
+          url,
+          error
+        )
+      } else {
+        // Generic network error
+        connErr = new StrapiConnectionError(
+          \`Network error: \${msg}. Check your baseURL: \${baseURL}\`,
           url,
           error
         )
       }
 
-      // Generic network error
-      throw new StrapiConnectionError(
-        \`Network error: \${msg}. Check your baseURL: \${baseURL}\`,
-        url,
-        error
-      )
+      if (this.config.onError) await this.config.onError(connErr)
+      throw connErr
     } finally {
       if (timeoutId) clearTimeout(timeoutId)
     }
@@ -809,8 +875,9 @@ class BaseAPI {
     if (!response.ok) {
       // Detect HTML response (wrong server / reverse proxy error page)
       const contentType = response.headers.get('content-type') || ''
+      let httpErr: StrapiError
       if (contentType.includes('text/html')) {
-        throw new StrapiError(
+        httpErr = new StrapiError(
           \`Strapi returned HTML instead of JSON. Your baseURL may point to the wrong server. URL: \${url}\`,
           'Unexpected HTML response from server',
           response.status,
@@ -818,20 +885,29 @@ class BaseAPI {
           undefined,
           'UnknownError'
         )
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        const userMessage = errorData.error?.message || response.statusText
+        const hint = this.getErrorHint(response.status)
+        const technicalMessage = \`\${errorPrefix} error: \${response.status} \${response.statusText}\${errorData.error?.message ? ' - ' + errorData.error.message : ''}\${hint}\`
+        httpErr = new StrapiError(
+          technicalMessage,
+          userMessage,
+          response.status,
+          response.statusText,
+          errorData.error?.details,
+          errorData.error?.name ?? 'UnknownError'
+        )
       }
 
-      const errorData = await response.json().catch(() => ({}))
-      const userMessage = errorData.error?.message || response.statusText
-      const hint = this.getErrorHint(response.status)
-      const technicalMessage = \`\${errorPrefix} error: \${response.status} \${response.statusText}\${errorData.error?.message ? ' - ' + errorData.error.message : ''}\${hint}\`
-      throw new StrapiError(
-        technicalMessage,
-        userMessage,
-        response.status,
-        response.statusText,
-        errorData.error?.details,
-        errorData.error?.name ?? 'UnknownError'
-      )
+      if (this.config.onError) await this.config.onError(httpErr)
+      throw httpErr
+    }
+
+    // onResponse interceptor — observe a successful response before parsing.
+    // The body is single-use; a hook that reads it must use response.clone().
+    if (this.config.onResponse) {
+      await this.config.onResponse(response)
     }
 
     // Handle 204 No Content (e.g., from DELETE operations)
@@ -1390,6 +1466,7 @@ ${standaloneInits}
     }
   }
 
+  /** @deprecated Prefer \`config.onRequest\` to attach the Authorization header dynamically (enables token refresh / reading from storage). \`setToken\` still works for now. */
   setToken(token: string) {
     this.config.token = token
   }

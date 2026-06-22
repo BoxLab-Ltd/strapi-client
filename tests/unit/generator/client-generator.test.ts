@@ -210,7 +210,7 @@ describe('ClientGenerator', () => {
 
         it('should propagate Strapi-side error name into the StrapiError constructor', () => {
             expect(output).toContain(
-                "errorData.error?.details,\n        errorData.error?.name ?? 'UnknownError'",
+                "errorData.error?.details,\n          errorData.error?.name ?? 'UnknownError'",
             )
             expect(output).toContain(
                 "response.statusText,\n          undefined,\n          'UnknownError'",
@@ -231,11 +231,60 @@ describe('ClientGenerator', () => {
             )
         })
         it('should wrap fetch in try-catch with StrapiConnectionError for network errors', () => {
-            expect(output).toContain('throw new StrapiConnectionError(')
+            expect(output).toContain('connErr = new StrapiConnectionError(')
+            expect(output).toContain('throw connErr')
             expect(output).toContain('ECONNREFUSED')
             expect(output).toContain('Is the server running?')
             expect(output).toContain('ENOTFOUND')
             expect(output).toContain('Could not resolve host')
+        })
+        it('should emit the RequestConfig interface for onRequest', () => {
+            expect(output).toContain('export interface RequestConfig {')
+            expect(output).toContain('url: string')
+            expect(output).toContain('headers: Record<string, string>')
+            expect(output).toContain('body?: BodyInit | null')
+            expect(output).toContain('signal?: AbortSignal')
+        })
+        it('should add onRequest/onResponse/onError to StrapiClientConfig', () => {
+            expect(output).toContain(
+                'onRequest?: (req: RequestConfig) => RequestConfig | void | Promise<RequestConfig | void>',
+            )
+            expect(output).toContain(
+                'onResponse?: (res: Response) => void | Promise<void>',
+            )
+            expect(output).toContain(
+                'onError?: (err: StrapiError | StrapiConnectionError) => void | Promise<void>',
+            )
+        })
+        it('should weave onRequest before fetch, reassigning url and preserving the timeout signal', () => {
+            expect(output).toContain('if (this.config.onRequest) {')
+            expect(output).toContain('const reqConfig: RequestConfig = {')
+            expect(output).toContain(
+                'const result = await this.config.onRequest(reqConfig)',
+            )
+            expect(output).toContain('url = eff.url')
+            // timeout signal must not be clobbered when the hook returns none
+            expect(output).toContain(
+                'if (eff.signal) fetchOptions.signal = eff.signal',
+            )
+        })
+        it('should call onError then ALWAYS rethrow (observe-only, no swallow) at both error paths', () => {
+            expect(output).toContain(
+                'if (this.config.onError) await this.config.onError(connErr)\n      throw connErr',
+            )
+            expect(output).toContain(
+                'if (this.config.onError) await this.config.onError(httpErr)\n      throw httpErr',
+            )
+        })
+        it('should call onResponse on the success path before parsing', () => {
+            expect(output).toContain('if (this.config.onResponse) {')
+            expect(output).toContain('await this.config.onResponse(response)')
+        })
+        it('should mark token and setToken @deprecated in favor of onRequest', () => {
+            expect(output).toContain('setToken(token: string)')
+            // both the config.token field and setToken carry a @deprecated note
+            const tokenIdx = output.indexOf('setToken(token: string)')
+            expect(output.slice(0, tokenIdx)).toContain('@deprecated')
         })
         it('should detect HTML responses and throw StrapiError with helpful message', () => {
             expect(output).toContain('text/html')
