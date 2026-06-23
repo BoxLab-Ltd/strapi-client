@@ -57,14 +57,101 @@ export function convertEndpointsToRoutes(
 }
 
 /**
+ * TS built-in / global type names that are always valid in a type expression
+ * and must never be treated as unresolved. Primitives (string, number, …) are
+ * lowercase so they aren't matched by the capitalised-identifier scan.
+ */
+const TS_BUILTIN_TYPES = new Set([
+    'Array',
+    'ReadonlyArray',
+    'Record',
+    'Partial',
+    'Required',
+    'Readonly',
+    'Pick',
+    'Omit',
+    'Exclude',
+    'Extract',
+    'NonNullable',
+    'Parameters',
+    'ReturnType',
+    'InstanceType',
+    'Awaited',
+    'Promise',
+    'Map',
+    'Set',
+    'WeakMap',
+    'WeakSet',
+    'Date',
+    'RegExp',
+    'Error',
+    'Object',
+    'String',
+    'Number',
+    'Boolean',
+    'Function',
+    'Symbol',
+    'BigInt',
+    'Uint8Array',
+    'ArrayBuffer',
+    'Blob',
+    'File',
+    'FormData',
+])
+
+/**
+ * Custom-endpoint type strings are scraped verbatim from controller source, so
+ * they can reference named types that only exist in the controller's module
+ * (imported, never shipped) — emitting those would produce `Cannot find name`
+ * errors. Replace any capitalised identifier that isn't a TS built-in or a
+ * known generated/local type with `unknown` so the client always compiles.
+ * Full cross-module resolution is deferred to the ts-morph Endpoints parser.
+ *
+ * Heuristic and deliberately conservative: string literals are masked so names
+ * inside them are left alone, and identifiers in object-key position (followed
+ * by `:`) are treated as keys, not type references. Collects the names it
+ * dropped into `unresolved`.
+ */
+function sanitizeTypeRefs(
+    typeStr: string,
+    known: Set<string>,
+    unresolved: Set<string>,
+): string {
+    // Mask string literals ('...' / "...") so identifiers inside them survive.
+    const literals: string[] = []
+    const masked = typeStr.replace(/'[^']*'|"[^"]*"/g, m => {
+        literals.push(m)
+        return `${literals.length - 1}`
+    })
+
+    const scanned = masked.replace(
+        /\b[A-Z][A-Za-z0-9_]*\b/g,
+        (name, offset: number, full: string) => {
+            // Skip object keys / labels: identifier immediately followed by `:`.
+            if (/^\s*:/.test(full.slice(offset + name.length))) return name
+            if (TS_BUILTIN_TYPES.has(name) || known.has(name)) return name
+            unresolved.add(name)
+            return 'unknown'
+        },
+    )
+
+    return scanned.replace(/(\d+)/g, (_, i) => literals[Number(i)])
+}
+
+/**
  * Convert ParsedEndpoint[] to ParsedCustomTypes format
  *
  * Extracts inline type definitions from endpoint types (body/response)
  * and creates handler-to-type mappings.
+ *
+ * `knownTypeNames` is the set of type names the generated client defines
+ * (content-type + component cleanNames, MediaFile, extra controller types) so
+ * the sanitizer can tell a resolvable reference from a dangling one.
  */
 export function convertEndpointsToCustomTypes(
     endpoints: ParsedEndpoint[],
     extraTypes?: ExtraControllerType[],
+    knownTypeNames: Set<string> = new Set(),
 ): ParsedCustomTypes {
     const types = new Map<string, CustomEndpointType>()
     const typeDefinitions: string[] = []
@@ -109,18 +196,38 @@ export function convertEndpointsToCustomTypes(
         const namespaceLines: string[] = []
         namespaceLines.push(`export namespace ${namespaceName} {`)
 
-        // Add extra (standalone) types first
         const controllerExtraTypes = extraByController.get(controller)
+        const controllerEndpoints = byController.get(controller)
+
+        // Names this namespace itself defines — added to the known set so a
+        // reference to a sibling type in the same namespace isn't mistaken for
+        // an unresolved one by the sanitizer.
+        const ownNames = new Set<string>()
+        if (controllerExtraTypes) {
+            for (const extra of controllerExtraTypes)
+                ownNames.add(extra.typeName)
+        }
+        if (controllerEndpoints) {
+            for (const endpoint of controllerEndpoints) {
+                if (!endpoint.types) continue
+                const ap = toPascalCasePreserve(endpoint.action)
+                if (endpoint.types.body) ownNames.add(`${ap}Request`)
+                if (endpoint.types.response) ownNames.add(`${ap}Response`)
+            }
+        }
+        const nsKnown = new Set<string>([...knownTypeNames, ...ownNames])
+        const unresolved = new Set<string>()
+
+        // Add extra (standalone) types first
         if (controllerExtraTypes) {
             for (const extra of controllerExtraTypes) {
                 namespaceLines.push(
-                    `  export type ${extra.typeName} = ${extra.typeDefinition}`,
+                    `  export type ${extra.typeName} = ${sanitizeTypeRefs(extra.typeDefinition, nsKnown, unresolved)}`,
                 )
             }
         }
 
         // Add endpoint-derived types
-        const controllerEndpoints = byController.get(controller)
         if (controllerEndpoints) {
             for (const endpoint of controllerEndpoints) {
                 if (!endpoint.types) continue
@@ -130,7 +237,7 @@ export function convertEndpointsToCustomTypes(
                 if (endpoint.types.body) {
                     const typeName = `${actionPascal}Request`
                     namespaceLines.push(
-                        `  export type ${typeName} = ${endpoint.types.body}`,
+                        `  export type ${typeName} = ${sanitizeTypeRefs(endpoint.types.body, nsKnown, unresolved)}`,
                     )
 
                     // Map handler to input type
@@ -149,7 +256,7 @@ export function convertEndpointsToCustomTypes(
                         endpoint.types.response,
                     )
                     namespaceLines.push(
-                        `  export type ${typeName} = ${unwrappedResponse}`,
+                        `  export type ${typeName} = ${sanitizeTypeRefs(unwrappedResponse, nsKnown, unresolved)}`,
                     )
 
                     // Map handler to output type
@@ -162,10 +269,23 @@ export function convertEndpointsToCustomTypes(
             }
         }
 
+        // If any referenced name couldn't be resolved we degraded it to
+        // `unknown` — leave a discoverable note in the committed output. Full
+        // cross-module resolution is deferred to the ts-morph Endpoints parser.
+        if (unresolved.size > 0) {
+            namespaceLines.splice(
+                1,
+                0,
+                `  // NOTE: ${[...unresolved].sort().join(', ')} could not be resolved from the schema and fall back to \`unknown\` (custom-endpoint types referencing controller-local types).`,
+            )
+        }
+
         namespaceLines.push('}')
 
-        // Only add namespace if it has content
-        if (namespaceLines.length > 2) {
+        // Only add namespace if it has real content (open + close, plus an
+        // optional NOTE, is empty).
+        const minLines = unresolved.size > 0 ? 3 : 2
+        if (namespaceLines.length > minLines) {
             typeDefinitions.push(namespaceLines.join('\n'))
             namespaceImports.push(namespaceName)
         }

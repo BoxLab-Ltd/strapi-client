@@ -242,6 +242,14 @@ export class AuthApiGenerator {
             ? '// Auth API wrapper for users-permissions plugin'
             : '// Auth API wrapper for users-permissions plugin (generated from actual routes)'
 
+        // Names already produced by the route/user methods — so the injected
+        // client-side helpers don't collide with a real route (e.g. a custom
+        // `auth.logout` endpoint vs the deprecated `logout` alias).
+        const emitted = new Set<string>([
+            ...authRoutes.map(r => this.methodNameFor(r)),
+            ...specialUserRoutes.map(r => this.methodNameFor(r)),
+        ])
+
         return `${header}
 class AuthAPI extends BaseAPI {
   constructor(config: StrapiClientConfig) {
@@ -252,22 +260,30 @@ ${authMethods}
 
 ${userMethods}
 
-${this.generateClientSideHelpers()}
+${this.generateClientSideHelpers(emitted)}
 }`
     }
 
-    private generateAuthMethod(route: ParsedRoute): string {
-        // Generate method name from action, with special handling for callback
-        let methodName = toCamelCase(route.action)
-
-        // Special case: rename auth.callback on /auth/local to "login"
+    /**
+     * The method name a route will be emitted under — mirrors the renames in
+     * generateAuthMethod (login, confirmEmail). Used to detect collisions with
+     * the injected client-side helpers.
+     */
+    private methodNameFor(route: ParsedRoute): string {
         if (
             route.action === 'callback' &&
             route.path === '/auth/local' &&
             route.method === 'POST'
         ) {
-            methodName = 'login'
+            return 'login'
         }
+        if (route.action === 'emailConfirmation') return 'confirmEmail'
+        return toCamelCase(route.action)
+    }
+
+    private generateAuthMethod(route: ParsedRoute): string {
+        // Method name (login/confirmEmail renames handled in methodNameFor)
+        const methodName = this.methodNameFor(route)
 
         // Special handling for me() - it should support populate with type inference
         if (route.action === 'me') {
@@ -481,20 +497,27 @@ ${bodyBlock}
   }`
     }
 
-    private generateClientSideHelpers(): string {
-        return `  /**
+    private generateClientSideHelpers(emitted: Set<string>): string {
+        const clearToken = `  /**
    * Clear the stored auth token. Client-side only — does not call the server.
    */
   async clearToken(): Promise<void> {
     this.config.token = undefined
-  }
+  }`
 
-  /**
+        // Skip the deprecated logout alias when a real route already emits a
+        // \`logout\` method (a server-backed /auth/logout should win over the
+        // client-side token clear). clearToken is always emitted.
+        if (emitted.has('logout')) return clearToken
+
+        const logoutAlias = `  /**
    * @deprecated Use \`clearToken()\` instead. Will be removed in a future major.
    */
   async logout(): Promise<void> {
     return this.clearToken()
   }`
+
+        return `${clearToken}\n\n${logoutAlias}`
     }
 
     private generateAuthMethodParams(route: ParsedRoute): string {

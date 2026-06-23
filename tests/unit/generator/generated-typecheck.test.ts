@@ -67,12 +67,33 @@ const widget: ContentType = {
     dynamicZones: [],
 }
 
+// A single type whose name camelCases to `auth`, colliding with the
+// users-permissions `auth` namespace unless the content-type property is
+// disambiguated (regression guard for the auth-property collision).
+const authSingle: ContentType = {
+    name: 'ApiAuthAuth',
+    cleanName: 'Auth',
+    collectionName: 'auths',
+    singularName: 'auth',
+    pluralName: 'auths',
+    kind: 'single',
+    attributes: [
+        { name: 'provider', type: { kind: 'string' }, required: false },
+    ],
+    relations: [],
+    media: [],
+    components: [],
+    dynamicZones: [],
+}
+
 const schema: ParsedSchema = {
-    contentTypes: [...mockSchema.contentTypes, widget],
+    contentTypes: [...mockSchema.contentTypes, widget, authSingle],
     components: mockSchema.components,
 }
 
-// A custom route that reuses the `create` CRUD action on the item controller.
+// Custom routes that exercise: (1) reusing the `create` CRUD action on item
+// (Bug D mangle), and (2) a response referencing a type that isn't generated
+// or known — it must degrade to `unknown` instead of emitting an undefined name.
 const endpoints: ParsedEndpoint[] = [
     {
         method: 'POST',
@@ -80,6 +101,14 @@ const endpoints: ParsedEndpoint[] = [
         handler: 'api::item.item.create',
         controller: 'item',
         action: 'create',
+    },
+    {
+        method: 'GET',
+        path: '/items/active-generation',
+        handler: 'api::item.item.getActiveGeneration',
+        controller: 'item',
+        action: 'getActiveGeneration',
+        types: { response: 'GenerationView | null' },
     },
 ]
 
@@ -180,5 +209,19 @@ describe('generated client type-checks clean without @ts-nocheck', () => {
         expect(itemApi).toContain('async createItem(')
         // the inherited base `create` must NOT be overridden by the custom route
         expect(itemApi).not.toContain('async create(')
+    })
+
+    it('reserves `auth` for the users-permissions namespace and disambiguates a colliding content type', () => {
+        expect(clientSource).toContain('auth: AuthAPI')
+        // the single type `auth` must not clobber the namespace
+        expect(clientSource).toContain('authSingle:')
+        expect(clientSource).toContain('this.authSingle = new SingleTypeAPI(')
+    })
+
+    it('degrades an unresolved custom-endpoint type to `unknown` (not an undefined name)', () => {
+        // the response `GenerationView | null` becomes `unknown | null`
+        expect(clientSource).toContain('GetActiveGenerationResponse = unknown')
+        // ...with a discoverable note naming what was dropped
+        expect(clientSource).toContain('could not be resolved')
     })
 })

@@ -71,9 +71,20 @@ export class ClientGenerator {
 
         if (endpoints && endpoints.length > 0) {
             parsedRoutes = convertEndpointsToRoutes(endpoints)
+            // Type names the generated client actually defines, so custom
+            // endpoint type strings referencing anything else (a controller-
+            // local type that was never shipped) degrade to `unknown` instead
+            // of emitting an undefined name.
+            const knownTypeNames = new Set<string>([
+                ...schema.contentTypes.map(c => c.cleanName),
+                ...schema.components.map(c => c.cleanName),
+                'MediaFile',
+                ...(extraTypes?.map(t => t.typeName) ?? []),
+            ])
             const customTypes = convertEndpointsToCustomTypes(
                 endpoints,
                 extraTypes,
+                knownTypeNames,
             )
             this.customApiGenerator.setCustomTypes(customTypes)
         }
@@ -1356,7 +1367,10 @@ ${customMethods}
                     contentType,
                     !!hasCustomRoutes,
                 )
-                const propName = toCamelCase(endpoint)
+                const propName = this.contentTypePropName(
+                    endpoint,
+                    contentType.kind,
+                )
                 const typeParam = hasCustomRoutes
                     ? ''
                     : this.buildTypeParams(contentType)
@@ -1386,7 +1400,10 @@ ${customMethods}
                     contentType,
                     !!hasCustomRoutes,
                 )
-                const propName = toCamelCase(endpoint)
+                const propName = this.contentTypePropName(
+                    endpoint,
+                    contentType.kind,
+                )
 
                 // Determine final endpoint with plugin prefix
                 // Plugin content types get prefix by default, unless routes explicitly set prefix: ''
@@ -1521,6 +1538,22 @@ ${standaloneInits}
      * the client. When this collision occurs, disambiguate the standalone name
      * by prefixing it with the plugin's camelCase name.
      */
+    /**
+     * Property name for a content type on StrapiClient. `auth` (and its
+     * deprecated alias `authentication`) are reserved for the users-permissions
+     * namespace, so a content type whose endpoint camelCases to one of those is
+     * disambiguated by kind (e.g. a single type `auth` → `authSingle`) to avoid
+     * a duplicate-identifier collision with `auth: AuthAPI`.
+     */
+    private contentTypePropName(
+        endpoint: string,
+        kind: 'single' | 'collection',
+    ): string {
+        const base = toCamelCase(endpoint)
+        if (base !== 'auth' && base !== 'authentication') return base
+        return base + (kind === 'single' ? 'Single' : 'Collection')
+    }
+
     private resolveStandaloneNames(
         controller: string,
         routes: ParsedRoute[],

@@ -535,3 +535,49 @@ describe('generateAuthApiClass - dynamic with full plugin:: handler format', () 
         expect(result).toContain('async me(')
     })
 })
+
+describe('generateAuthApiClass — logout dedup (route vs client-side helper)', () => {
+    const userRoutes: ParsedRoute[] = [
+        {
+            method: 'GET',
+            path: '/users/me',
+            handler: 'plugin::users-permissions.user.me',
+            controller: 'user',
+            action: 'me',
+            params: [],
+        },
+    ]
+
+    it('emits exactly one logout when a route already provides it (clearToken still present)', () => {
+        const authRoutes: ParsedRoute[] = [
+            {
+                method: 'POST',
+                path: '/auth/logout',
+                handler: 'plugin::users-permissions.auth.logout',
+                controller: 'auth',
+                action: 'logout',
+                params: [],
+            },
+        ]
+        const result = generator.generateAuthApiClass(authRoutes, userRoutes)
+        expect((result.match(/async logout\(/g) || []).length).toBe(1)
+        expect((result.match(/async clearToken\(/g) || []).length).toBe(1)
+    })
+
+    it('still emits the deprecated logout alias when no route provides logout', () => {
+        const authRoutes: ParsedRoute[] = [
+            {
+                method: 'POST',
+                path: '/auth/forgot-password',
+                handler: 'auth.forgotPassword',
+                controller: 'auth',
+                action: 'forgotPassword',
+                params: [],
+            },
+        ]
+        const result = generator.generateAuthApiClass(authRoutes, userRoutes)
+        expect((result.match(/async logout\(/g) || []).length).toBe(1)
+        expect(result).toContain('@deprecated')
+        expect(result).toContain('return this.clearToken()')
+    })
+})

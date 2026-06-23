@@ -428,4 +428,29 @@ describe('convertEndpointsToCustomTypes', () => {
         expect(result.types.size).toBe(0)
         expect(result.typeDefinitions).toEqual([])
     })
+
+    it('degrades unresolved named types to `unknown` and preserves known ones', () => {
+        const endpoints: ParsedEndpoint[] = [
+            {
+                method: 'GET',
+                path: '/items/x',
+                handler: 'item.getX',
+                controller: 'item',
+                action: 'getX',
+                types: { response: '{ item: Item; widget: GenerationView }' },
+            },
+        ]
+
+        const result = convertEndpointsToCustomTypes(
+            endpoints,
+            undefined,
+            new Set(['Item']),
+        )
+        const def = result.typeDefinitions.join('\n')
+
+        expect(def).toContain('item: Item') // known type preserved
+        expect(def).toContain('widget: unknown') // unknown type degraded
+        expect(def).not.toMatch(/widget:\s*GenerationView/)
+        expect(def).toContain('could not be resolved') // discoverable note
+    })
 })
