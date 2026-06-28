@@ -1,5 +1,4 @@
 {
-    "$schema": "https://context7.com/schema/context7.json",
     "url": "https://context7.com/boxlab-ltd/strapi-typed-client",
     "public_key": "pk_HpKKpQAaVHDRpCSwAb9q3",
     "projectTitle": "strapi-typed-client",
