@@ -16,6 +16,14 @@ export default defineConfig({
                 href: '/strapi-typed-client/logo.svg',
             },
         ],
+        [
+            'script',
+            {
+                src: 'https://context7.com/widget.js',
+                'data-library': '/boxlab-ltd/strapi-typed-client',
+                async: '',
+            },
+        ],
     ],
 
     themeConfig: {
