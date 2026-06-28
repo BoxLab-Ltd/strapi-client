@@ -21,6 +21,10 @@ export default defineConfig({
             {
                 src: 'https://context7.com/widget.js',
                 'data-library': '/boxlab-ltd/strapi-typed-client',
+                'data-color': '#4945FF',
+                'data-placeholder': 'Ask about strapi-typed-client…',
+                'data-welcome-message':
+                    'Hi! Ask me anything about strapi-typed-client — setup, the CLI, typed populate, filters, or the Next.js integration.',
                 async: '',
             },
         ],
