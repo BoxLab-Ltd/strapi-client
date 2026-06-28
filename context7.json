@@ -2,7 +2,7 @@
     "url": "https://context7.com/boxlab-ltd/strapi-typed-client",
     "public_key": "pk_HpKKpQAaVHDRpCSwAb9q3",
     "projectTitle": "strapi-typed-client",
-    "description": "Type-safe Strapi v5 client with automatic TypeScript codegen and populate type inference. A Strapi plugin + CLI that generates typed entities, filters, and a fetch client with full autocomplete — Prisma-like DX for Strapi.",
+    "description": "Type-safe Strapi v5 client: a plugin + CLI that generates TypeScript types, typed filters, and a fetch client with full autocomplete and populate type inference — Prisma-like DX for Strapi.",
     "folders": ["docs"],
     "excludeFolders": ["docs/.vitepress", "docs/public"],
     "excludeFiles": [],
