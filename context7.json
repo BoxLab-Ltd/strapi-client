@@ -1,0 +1,16 @@
+{
+    "$schema": "https://context7.com/schema/context7.json",
+    "projectTitle": "strapi-typed-client",
+    "description": "Type-safe Strapi v5 client with automatic TypeScript codegen and populate type inference. A Strapi plugin + CLI that generates typed entities, filters, and a fetch client with full autocomplete — Prisma-like DX for Strapi.",
+    "folders": ["docs"],
+    "excludeFolders": ["docs/.vitepress", "docs/public"],
+    "excludeFiles": [],
+    "rules": [
+        "Strapi v5 only — schema structure differs completely from v4, this client does not support v4.",
+        "The generated client is committed codegen: consumers run the `strapi-types` CLI with a required `--output` directory, then import from there. There is no bare package import (no `.` export).",
+        "Enable the plugin in Strapi `config/plugins.ts` first, then run the CLI to fetch the schema and generate types.",
+        "Use `--format js` (default) to compile generated code into node_modules, or `--format ts` to write raw .ts files into your source tree.",
+        "For Next.js, wrap the config with `withStrapiTypes()` to auto-regenerate types on dev/build.",
+        "Populate is type-inferred: the response type narrows based on the populate argument, similar to Prisma's select/include."
+    ]
+}
