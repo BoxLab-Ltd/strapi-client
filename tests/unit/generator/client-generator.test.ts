@@ -247,7 +247,7 @@ describe('ClientGenerator', () => {
         })
         it('should add onRequest/onResponse/onError to StrapiClientConfig', () => {
             expect(output).toContain(
-                'onRequest?: (req: RequestConfig) => RequestConfig | void | Promise<RequestConfig | void>',
+                'onRequest?: (req: RequestConfig) => Partial<RequestConfig> | void | Promise<Partial<RequestConfig> | void>',
             )
             expect(output).toContain(
                 'onResponse?: (res: Response) => void | Promise<void>',
@@ -256,14 +256,18 @@ describe('ClientGenerator', () => {
                 'onError?: (err: StrapiError | StrapiConnectionError) => void | Promise<void>',
             )
         })
-        it('should weave onRequest before fetch, reassigning url and preserving the timeout signal', () => {
+        it('should weave onRequest before fetch, merging the returned config over the assembled one', () => {
             expect(output).toContain('if (this.config.onRequest) {')
             expect(output).toContain('const reqConfig: RequestConfig = {')
             expect(output).toContain(
                 'const result = await this.config.onRequest(reqConfig)',
             )
+            // a partial return must not drop method/body — merge over the base
+            expect(output).toContain(
+                'const eff = result ? { ...reqConfig, ...result } : reqConfig',
+            )
             expect(output).toContain('url = eff.url')
-            // timeout signal must not be clobbered when the hook returns none
+            // the timeout signal is preserved unless the hook sets its own
             expect(output).toContain(
                 'if (eff.signal) fetchOptions.signal = eff.signal',
             )

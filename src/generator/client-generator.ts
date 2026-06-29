@@ -411,7 +411,7 @@ import type { ${filterImports.join(', ')} } from './types.js'`
             name: 'RequestConfig',
             isExported: true,
             docs: [
-                'The outgoing request, passed to `onRequest`. Mutate it in place or return a replacement to change the URL, method, headers, or body before the request is sent.',
+                'The outgoing request, passed to `onRequest`. Mutate it in place, or return a partial object whose fields override the assembled request; omitted fields keep their assembled value.',
             ],
             properties: [
                 { name: 'url', type: 'string' },
@@ -473,10 +473,10 @@ import type { ${filterImports.join(', ')} } from './types.js'`
                 },
                 {
                     name: 'onRequest',
-                    type: '(req: RequestConfig) => RequestConfig | void | Promise<RequestConfig | void>',
+                    type: '(req: RequestConfig) => Partial<RequestConfig> | void | Promise<Partial<RequestConfig> | void>',
                     hasQuestionToken: true,
                     docs: [
-                        'Called before each request, after headers/timeout are assembled. Mutate `req` in place or return a replacement to change the URL, method, headers, or body. Use it to attach a token from any async source (replaces `setToken`). If you swap the body to/from FormData you must set the Content-Type header yourself.',
+                        'Called before each request, after headers/timeout are assembled. Mutate `req` in place, or return a partial object to override individual fields (omitted fields keep their assembled value). Use it to attach a token from any async source (replaces `setToken`). If you swap the body to/from FormData you must set the Content-Type header yourself.',
                     ],
                 },
                 {
@@ -778,10 +778,6 @@ class BaseAPI {
   ): Promise<R> {
     const fetchFn = this.config.fetch || globalThis.fetch
 
-    if (this.config.debug) {
-      console.log(\`[\${errorPrefix}] \${options.method || 'GET'} \${url}\`)
-    }
-
     const headers: Record<string, string> = {
       ...options.headers as Record<string, string>,
     }
@@ -841,13 +837,18 @@ class BaseAPI {
         signal: fetchOptions.signal as AbortSignal | undefined,
       }
       const result = await this.config.onRequest(reqConfig)
-      const eff = result || reqConfig
+      // Merge over the assembled config so a partial return can't drop method/body.
+      const eff = result ? { ...reqConfig, ...result } : reqConfig
       url = eff.url
       fetchOptions.method = eff.method
       fetchOptions.headers = eff.headers
       fetchOptions.body = eff.body
-      // Don't clobber the timeout signal if the hook didn't set one
+      // Keep the timeout signal unless the hook set its own.
       if (eff.signal) fetchOptions.signal = eff.signal
+    }
+
+    if (this.config.debug) {
+      console.log(\`[\${errorPrefix}] \${fetchOptions.method || 'GET'} \${url}\`)
     }
 
     let response: Response
