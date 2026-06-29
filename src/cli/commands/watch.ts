@@ -13,6 +13,7 @@ export interface WatchOptions {
     token?: string
     output?: string
     silent?: boolean
+    typecheck?: boolean
 }
 
 /**
@@ -47,6 +48,7 @@ export async function watch(options: WatchOptions): Promise<void> {
             token: options.token,
             output: outputDir,
             silent: options.silent,
+            typecheck: options.typecheck,
         })
     }
 
@@ -77,6 +79,7 @@ export async function watch(options: WatchOptions): Promise<void> {
                         token: options.token,
                         output: outputDir,
                         silent: true,
+                        typecheck: options.typecheck,
                     })
 
                     if (result.success) {
@@ -140,6 +143,10 @@ export function createWatchCommand(program: Command): void {
             'Output directory (required) — your source tree, e.g. ./src/strapi',
         )
         .option('-s, --silent', 'Suppress regeneration messages')
+        .option(
+            '--no-typecheck',
+            'Write regenerated types even if they fail type-checking (escape hatch for strict-only false positives)',
+        )
         .action(async (opts: WatchOptions) => {
             try {
                 await watch({
@@ -147,6 +154,7 @@ export function createWatchCommand(program: Command): void {
                     token: opts.token,
                     output: opts.output,
                     silent: opts.silent,
+                    typecheck: opts.typecheck,
                 })
             } catch (err) {
                 console.error((err as Error).message)

@@ -20,6 +20,7 @@ export interface StrapiTypesConfig {
     silent?: boolean
     format?: 'js' | 'ts'
     output?: string
+    typecheck?: boolean
 }
 
 const _require = createRequire(import.meta.url)
@@ -150,6 +151,7 @@ async function startDevWatch(config: StrapiTypesConfig): Promise<void> {
                         silent: true,
                         force: true,
                         format,
+                        typecheck: config.typecheck,
                     })
 
                     stop()
@@ -203,6 +205,10 @@ function runBuildGenerate(config: StrapiTypesConfig): void {
         '--format',
         format,
     ]
+
+    if (config.typecheck === false) {
+        args.push('--no-typecheck')
+    }
 
     if (token) {
         args.push('--token', token)

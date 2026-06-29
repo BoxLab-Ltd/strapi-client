@@ -22,6 +22,7 @@ export interface GenerateOptions {
     silent?: boolean
     force?: boolean
     format?: 'js' | 'ts'
+    typecheck?: boolean
 }
 
 /**
@@ -223,6 +224,7 @@ export async function generate(
             hash,
             getGeneratorVersion(),
             format,
+            options.typecheck ?? true,
         )
 
         // Track generated files
@@ -272,6 +274,7 @@ interface GenerateCliOptions {
     silent?: boolean
     force?: boolean
     format?: string
+    typecheck?: boolean
 }
 
 /**
@@ -300,6 +303,10 @@ export function createGenerateCommand(program: Command): void {
             'Output format: js (compiled .js + .d.ts, default) or ts (raw .ts for monorepo/source-tree output)',
             'js',
         )
+        .option(
+            '--no-typecheck',
+            'Write the generated client even if it fails type-checking (escape hatch for strict-only false positives)',
+        )
         .action(async (opts: GenerateCliOptions) => {
             if (opts.format && opts.format !== 'js' && opts.format !== 'ts') {
                 console.error(
@@ -315,6 +322,7 @@ export function createGenerateCommand(program: Command): void {
                 silent: opts.silent,
                 force: opts.force,
                 format: opts.format as 'js' | 'ts' | undefined,
+                typecheck: opts.typecheck,
             })
 
             if (!result.success) {

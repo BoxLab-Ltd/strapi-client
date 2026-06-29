@@ -38,12 +38,8 @@ export class Generator {
         schemaHash: string = '',
         generatorVersion: string = '',
         format: 'js' | 'ts' = 'js',
+        typecheck: boolean = true,
     ): Promise<void> {
-        // Ensure output directory exists
-        if (!fs.existsSync(this.outputDir)) {
-            fs.mkdirSync(this.outputDir, { recursive: true })
-        }
-
         // Generate all source contents
         const typesContent = this.typesGenerator.generate(schema)
         const clientContent = this.clientGenerator.generate(
@@ -68,10 +64,20 @@ export class Generator {
             // relative imports first: tsc under moduleResolution "bundler"
             // accepts them (resolves .js → .ts), but Turbopack (Next 16)
             // doesn't, breaking `next build`.
-            for (const [fileName, data] of Object.entries(files)) {
+            const strippedFiles = Object.fromEntries(
+                Object.entries(files).map(([name, data]) => [
+                    name,
+                    stripLocalJsExtensions(data),
+                ]),
+            )
+            // Type-check the exact bytes we're about to write, BEFORE touching
+            // the consumer's tree — a guard throw must leave it untouched.
+            this.verifyGeneratedTypes(strippedFiles, typecheck)
+            this.ensureOutputDir()
+            for (const [fileName, data] of Object.entries(strippedFiles)) {
                 fs.writeFileSync(
                     path.join(this.outputDir, fileName),
-                    stripLocalJsExtensions(data),
+                    data,
                     'utf-8',
                 )
             }
@@ -79,7 +85,13 @@ export class Generator {
         }
 
         // Compile all files together so cross-file imports resolve correctly
-        await this.compileFiles(files)
+        await this.compileFiles(files, typecheck)
+    }
+
+    private ensureOutputDir(): void {
+        if (!fs.existsSync(this.outputDir)) {
+            fs.mkdirSync(this.outputDir, { recursive: true })
+        }
     }
 
     private async formatContent(content: string): Promise<string> {
@@ -98,7 +110,10 @@ export class Generator {
         }
     }
 
-    private async compileFiles(files: Record<string, string>): Promise<void> {
+    private async compileFiles(
+        files: Record<string, string>,
+        typecheck: boolean,
+    ): Promise<void> {
         const compilerOptions: ts.CompilerOptions = {
             target: ts.ScriptTarget.ES2022,
             module: ts.ModuleKind.ES2022,
@@ -151,13 +166,14 @@ export class Generator {
         // type-check. Verify it the way a consumer's tsc would (on disk, where
         // bundler resolution maps the `.js` import specifiers to the sibling
         // `.ts`) and fail loudly rather than emit broken types into their tree.
-        this.assertGeneratedClientTypeChecks(files)
+        this.verifyGeneratedTypes(files, typecheck)
 
         // Compile all files together
         const program = ts.createProgram(fileNames, compilerOptions, host)
         program.emit()
 
         // Write output files
+        this.ensureOutputDir()
         for (const [fileName, data] of Object.entries(outputs)) {
             const outputPath = path.join(this.outputDir, fileName)
             fs.writeFileSync(outputPath, data, 'utf-8')
@@ -165,15 +181,30 @@ export class Generator {
     }
 
     /**
-     * Type-check the generated client the way a consumer's tsc would and throw
-     * on any error. Run from a temp dir on disk so bundler resolution maps the
-     * `.js` import specifiers to the sibling `.ts` files — the in-memory emit
-     * program can't resolve those, so it can't double as the check. Strict +
-     * skipLibCheck mirrors a typical consumer tsconfig.
+     * Block on the generated client's type errors. Default throws — broken
+     * types must never reach the consumer's tree; `--no-typecheck` downgrades
+     * to a warning and writes anyway, so a strict-only false positive can't
+     * wedge an upgrade with no recourse.
      */
-    private assertGeneratedClientTypeChecks(
+    private verifyGeneratedTypes(
         files: Record<string, string>,
+        typecheck: boolean,
     ): void {
+        const message = this.collectTypeErrors(files)
+        if (!message) return
+        if (typecheck) throw new Error(message)
+        console.warn(`${message}\n(--no-typecheck set: writing anyway.)`)
+    }
+
+    /**
+     * Type-check the generated client the way a consumer's tsc would and return
+     * a formatted error message, or null if clean. Run from a temp dir on disk
+     * so bundler resolution maps the `.js` import specifiers to the sibling
+     * `.ts` files — the in-memory emit program can't resolve those, so it can't
+     * double as the check. Strict + skipLibCheck mirrors a typical consumer
+     * tsconfig.
+     */
+    private collectTypeErrors(files: Record<string, string>): string | null {
         const checkDir = fs.mkdtempSync(
             path.join(os.tmpdir(), 'strapi-types-check-'),
         )
@@ -195,7 +226,7 @@ export class Generator {
             const diagnostics = ts
                 .getPreEmitDiagnostics(program)
                 .filter(d => d.file && d.file.fileName.startsWith(checkDir))
-            if (diagnostics.length === 0) return
+            if (diagnostics.length === 0) return null
 
             const details = diagnostics
                 .map(d => {
@@ -213,9 +244,10 @@ export class Generator {
                     return `  ${loc}TS${d.code}: ${msg}`
                 })
                 .join('\n')
-            throw new Error(
+            return (
                 `Generated client failed type-checking (${diagnostics.length} error(s)). ` +
-                    `This is a strapi-typed-client bug — please report it.\n${details}`,
+                `This is a strapi-typed-client bug — please report it. ` +
+                `If it's a false positive under your setup, bypass with --no-typecheck.\n${details}`
             )
         } finally {
             fs.rmSync(checkDir, { recursive: true, force: true })
