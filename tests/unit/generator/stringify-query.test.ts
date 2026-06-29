@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'fs'
+import { fileURLToPath } from 'url'
 import { stringifyQuery } from '../../../src/generator/templates/stringify-query.js'
+import { STRINGIFY_QUERY_SOURCE } from '../../../src/generator/client-generator.js'
 
 // Expected outputs are frozen snapshots of `qs.stringify(obj, { encodeValuesOnly: true, skipNulls: true })`
 // (qs@6.14.2). The runtime dependency on `qs` was dropped in favour of the vendored `stringifyQuery`;
@@ -101,5 +104,27 @@ describe('vendored stringifyQuery', () => {
 
     it('returns empty string for empty object', () => {
         expect(stringifyQuery({})).toBe('')
+    })
+})
+
+describe('STRINGIFY_QUERY_SOURCE inlined into the client', () => {
+    // The client embeds an inlined copy; this template is the source the
+    // qs-contract tests above execute. Compare whitespace-insensitively — the
+    // generated client is prettier-normalized, so only token drift matters.
+    const normalize = (s: string): string =>
+        s
+            .replace(/^export /gm, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+
+    it('stays in sync with templates/stringify-query.ts (no drift)', () => {
+        const templatePath = fileURLToPath(
+            new URL(
+                '../../../src/generator/templates/stringify-query.ts',
+                import.meta.url,
+            ),
+        )
+        const template = readFileSync(templatePath, 'utf-8')
+        expect(normalize(STRINGIFY_QUERY_SOURCE)).toBe(normalize(template))
     })
 })

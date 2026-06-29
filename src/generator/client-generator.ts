@@ -1,6 +1,3 @@
-import * as fs from 'fs'
-import * as path from 'path'
-import { createRequire } from 'module'
 import { Project, SourceFile } from 'ts-morph'
 import { ParsedSchema, ContentType } from '../schema-types.js'
 import { AuthApiGenerator } from './auth-api-generator.js'
@@ -23,27 +20,43 @@ import {
     convertEndpointsToCustomTypes,
 } from '../core/endpoint-converter.js'
 
-/**
- * Vendored stringifyQuery / appendEntry are kept as a real .ts module at
- * src/generator/templates/stringify-query.ts (single source of truth — tests
- * import and execute it directly). For the generated client we need the raw
- * TypeScript source so type annotations survive in `--format ts` output, so
- * we read the file as text and strip the `export` keyword before embedding.
- */
-const _require = createRequire(import.meta.url)
-function loadStringifyQuerySource(): string {
-    const pkgJsonPath = _require.resolve('strapi-typed-client/package.json')
-    const pkgRoot = path.dirname(pkgJsonPath)
-    const tsPath = path.join(
-        pkgRoot,
-        'src/generator/templates/stringify-query.ts',
-    )
-    return fs
-        .readFileSync(tsPath, 'utf-8')
-        .replace(/^export /gm, '')
-        .trim()
+// Inlined copy of templates/stringify-query.ts (the qs-contract-tested source) embedded raw so type annotations survive `--format ts`; a drift-guard test keeps the two in sync.
+export const STRINGIFY_QUERY_SOURCE = `function stringifyQuery(obj: Record<string, unknown>): string {
+    const pairs: string[] = []
+    for (const key of Object.keys(obj)) {
+        appendEntry(obj[key], key, pairs)
+    }
+    return pairs.join('&')
 }
-const STRINGIFY_QUERY_SOURCE = loadStringifyQuerySource()
+
+function appendEntry(
+    value: unknown,
+    prefix: string,
+    pairs: string[],
+): void {
+    if (value === null || value === undefined) return
+    if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+            appendEntry(value[i], \`\${prefix}[\${i}]\`, pairs)
+        }
+        return
+    }
+    if (value instanceof Date) {
+        pairs.push(\`\${prefix}=\${encodeURIComponent(value.toISOString())}\`)
+        return
+    }
+    if (typeof value === 'object') {
+        for (const key of Object.keys(value as Record<string, unknown>)) {
+            appendEntry(
+                (value as Record<string, unknown>)[key],
+                \`\${prefix}[\${key}]\`,
+                pairs,
+            )
+        }
+        return
+    }
+    pairs.push(\`\${prefix}=\${encodeURIComponent(String(value))}\`)
+}`
 
 export class ClientGenerator {
     private authApiGenerator: AuthApiGenerator
