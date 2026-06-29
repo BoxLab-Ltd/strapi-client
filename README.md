@@ -1,5 +1,7 @@
 # strapi-typed-client
 
+[![npm version](https://img.shields.io/npm/v/strapi-typed-client.svg)](https://www.npmjs.com/package/strapi-typed-client) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/BoxLab-Ltd/strapi-typed-client) [![GitMCP](https://img.shields.io/endpoint?url=https://gitmcp.io/badge/BoxLab-Ltd/strapi-typed-client)](https://gitmcp.io/BoxLab-Ltd/strapi-typed-client)
+
 Automatic TypeScript type generation and a fully typed API client for **Strapi v5**. Install a Strapi plugin, run a single CLI command, and get clean TypeScript interfaces plus a ready-to-use fetch client with full autocomplete.
 
 **[Documentation](https://boxlab-ltd.github.io/strapi-typed-client/)**
@@ -83,6 +85,26 @@ Full documentation is available at **[boxlab-ltd.github.io/strapi-typed-client](
 - [Next.js Integration](https://boxlab-ltd.github.io/strapi-typed-client/guide/nextjs) — auto-generation, cache options
 - [Plugin Config](https://boxlab-ltd.github.io/strapi-typed-client/advanced/plugin-config) — requireAuth, endpoints, schema hashing
 - [API Reference](https://boxlab-ltd.github.io/strapi-typed-client/reference/api) — full StrapiClient API
+
+## Use with AI tools
+
+The docs are published in agent-friendly formats so AI coding assistants answer questions about this library accurately:
+
+- **llms.txt** — [`/llms.txt`](https://boxlab-ltd.github.io/strapi-typed-client/llms.txt) and [`/llms-full.txt`](https://boxlab-ltd.github.io/strapi-typed-client/llms-full.txt). Add the docs root `https://boxlab-ltd.github.io/strapi-typed-client/` to Cursor (`@Docs`), Continue (`@docs`), or any tool that indexes docs by URL.
+- **context7** — indexed at [`/boxlab-ltd/strapi-typed-client`](https://context7.com/boxlab-ltd/strapi-typed-client); the docs site also embeds the context7 chat widget.
+- **GitMCP** — point any MCP-capable agent at `https://gitmcp.io/BoxLab-Ltd/strapi-typed-client`:
+
+    ```json
+    {
+        "mcpServers": {
+            "strapi-typed-client": {
+                "url": "https://gitmcp.io/BoxLab-Ltd/strapi-typed-client"
+            }
+        }
+    }
+    ```
+
+- **DeepWiki** — browse or query the auto-generated wiki at [deepwiki.com/BoxLab-Ltd/strapi-typed-client](https://deepwiki.com/BoxLab-Ltd/strapi-typed-client), or connect its MCP at `https://mcp.deepwiki.com/mcp`.
 
 ## Issues & Contributing
 

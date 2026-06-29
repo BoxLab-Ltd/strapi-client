@@ -7,6 +7,10 @@ export default defineConfig({
         'Type-safe Strapi v5 client with automatic TypeScript codegen and populate type inference',
     base: '/strapi-typed-client/',
 
+    sitemap: {
+        hostname: 'https://boxlab-ltd.github.io/strapi-typed-client/',
+    },
+
     head: [
         [
             'link',
@@ -141,7 +145,12 @@ export default defineConfig({
 
     vite: {
         // @ts-expect-error - Installing Vite v6 would fix this error, but it causes other issues with VitePress, so we'll ignore it for now
-        plugins: [llmstxt()],
+        plugins: [
+            llmstxt({
+                description:
+                    'Generate a fully typed TypeScript client for a Strapi v5 backend: typed filters, populate inference, and typed custom endpoints, via the strapi-types codegen CLI and a Strapi v5 plugin, with a Next.js integration that regenerates types on dev and build.',
+            }),
+        ],
     },
 
     markdown: {
