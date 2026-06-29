@@ -86,6 +86,8 @@
     "keywords": [
         "strapi",
         "strapi-plugin",
+        "strapi-v5",
+        "headless-cms",
         "typescript",
         "types",
         "generator",
