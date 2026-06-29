@@ -144,7 +144,6 @@ export default defineConfig({
     },
 
     vite: {
-        // @ts-expect-error - Installing Vite v6 would fix this error, but it causes other issues with VitePress, so we'll ignore it for now
         plugins: [
             llmstxt({
                 description:
