@@ -77,6 +77,33 @@ export function writeFiles(
 }
 
 /**
+ * Output that lands inside node_modules is ephemeral — a reinstall wipes it,
+ * so the types must be regenerated. Used to bar `--format ts` from it and to
+ * nudge `--format js` users toward a durable, committable output directory.
+ */
+export function isInsideNodeModules(outputDir: string): boolean {
+    return path.resolve(outputDir).split(path.sep).includes('node_modules')
+}
+
+/**
+ * Shipping raw .ts into node_modules breaks at runtime: Node can't require
+ * .ts files and the package.json exports still point at the missing .js.
+ * Force consumers to pick a source-tree output instead.
+ */
+export function assertOutputDirForFormat(
+    outputDir: string,
+    format: 'js' | 'ts',
+): void {
+    if (format !== 'ts') return
+    if (isInsideNodeModules(outputDir)) {
+        throw new Error(
+            `--format ts cannot write into node_modules (${outputDir}). ` +
+                `Point --output at your source tree (e.g. ./src/strapi).`,
+        )
+    }
+}
+
+/**
  * Require an explicit output directory. The generated client is meant to be
  * written into your source tree and committed — there is no implicit
  * node_modules default (a reinstall would wipe it). Throws an actionable error

@@ -6,6 +6,7 @@
  * Generate TypeScript types from Strapi schema
  *
  * Usage:
+ *   npx strapi-types init
  *   npx strapi-types generate --url http://localhost:1337
  *   npx strapi-types check --url http://localhost:1337
  *   npx strapi-types watch --url http://localhost:1337
@@ -15,6 +16,7 @@ import { Command } from 'commander'
 import { readFile } from 'fs/promises'
 import { fileURLToPath } from 'url'
 import * as path from 'path'
+import { createInitCommand } from './commands/init.js'
 import { createGenerateCommand } from './commands/generate.js'
 import { createCheckCommand } from './commands/check.js'
 import { createWatchCommand } from './commands/watch.js'
@@ -33,12 +35,13 @@ program
     .version(packageJson.version)
 
 // Register commands
+createInitCommand(program)
 createGenerateCommand(program)
 createCheckCommand(program)
 createWatchCommand(program)
 
-// Parse command line arguments
-program.parse(process.argv)
+// parseAsync so async action rejections surface instead of going unhandled
+await program.parseAsync(process.argv)
 
 // Show help if no command is provided
 if (!process.argv.slice(2).length) {

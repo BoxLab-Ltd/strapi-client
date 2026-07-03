@@ -10,8 +10,9 @@ import {
     readLocalSchemaHash,
     readLocalGeneratorVersion,
     requireOutputDir,
+    isInsideNodeModules,
+    assertOutputDirForFormat,
 } from '../utils/file-writer.js'
-import { Generator } from '../../generator/index.js'
 import { transformSchema } from '../../core/schema-transformer.js'
 import { getGeneratorVersion } from '../../shared/version.js'
 
@@ -23,33 +24,6 @@ export interface GenerateOptions {
     force?: boolean
     format?: 'js' | 'ts'
     typecheck?: boolean
-}
-
-/**
- * Output that lands inside node_modules is ephemeral — a reinstall wipes it,
- * so the types must be regenerated. Used to bar `--format ts` from it and to
- * nudge `--format js` users toward a durable, committable output directory.
- */
-function isInsideNodeModules(outputDir: string): boolean {
-    return path.resolve(outputDir).split(path.sep).includes('node_modules')
-}
-
-/**
- * Shipping raw .ts into node_modules breaks at runtime: Node can't require
- * .ts files and the package.json exports still point at the missing .js.
- * Force consumers to pick a source-tree output instead.
- */
-function assertOutputDirForFormat(
-    outputDir: string,
-    format: 'js' | 'ts',
-): void {
-    if (format !== 'ts') return
-    if (isInsideNodeModules(outputDir)) {
-        throw new Error(
-            `--format ts cannot write into node_modules (${outputDir}). ` +
-                `Point --output at your source tree (e.g. ./src/strapi).`,
-        )
-    }
 }
 
 const dim = (s: string): string => `\x1b[2m${s}\x1b[0m`
@@ -216,6 +190,8 @@ export async function generate(
             console.log('Generating TypeScript types...')
         }
 
+        // lazy: keeps the typescript compiler out of init/check/--help startup
+        const { Generator } = await import('../../generator/index.js')
         const generator = new Generator(outputDir)
         await generator.generate(
             parsedSchema,

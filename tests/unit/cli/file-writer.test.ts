@@ -6,6 +6,8 @@ import {
     readLocalSchemaHash,
     readLocalGeneratorVersion,
     requireOutputDir,
+    isInsideNodeModules,
+    assertOutputDirForFormat,
 } from '../../../src/cli/utils/file-writer.js'
 
 describe('requireOutputDir', () => {
@@ -31,6 +33,41 @@ describe('requireOutputDir', () => {
         expect(() => requireOutputDir('   ')).toThrow(
             /No output directory specified/,
         )
+    })
+})
+
+describe('isInsideNodeModules', () => {
+    it('detects a node_modules segment in relative and absolute paths', () => {
+        expect(isInsideNodeModules('node_modules/strapi-typed-client')).toBe(
+            true,
+        )
+        expect(isInsideNodeModules('./node_modules/x/dist')).toBe(true)
+        expect(isInsideNodeModules('/repo/node_modules/x/dist')).toBe(true)
+    })
+
+    it('is false for source-tree paths', () => {
+        expect(isInsideNodeModules('./src/strapi')).toBe(false)
+        expect(isInsideNodeModules('/repo/src/strapi')).toBe(false)
+    })
+})
+
+describe('assertOutputDirForFormat', () => {
+    it('throws for --format ts inside node_modules', () => {
+        expect(() =>
+            assertOutputDirForFormat('./node_modules/x/dist', 'ts'),
+        ).toThrow(/--format ts cannot write into node_modules/)
+    })
+
+    it('allows js output inside node_modules (nudge only)', () => {
+        expect(() =>
+            assertOutputDirForFormat('./node_modules/x/dist', 'js'),
+        ).not.toThrow()
+    })
+
+    it('allows ts output in the source tree', () => {
+        expect(() =>
+            assertOutputDirForFormat('./src/strapi', 'ts'),
+        ).not.toThrow()
     })
 })
 
