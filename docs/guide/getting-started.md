@@ -90,7 +90,19 @@ See [Authentication](/advanced/authentication) for more details.
 
 ## Generate Types
 
-With Strapi running, generate the types and a typed client into your project, and commit the result:
+The quickest path is the scaffolder — run it at your frontend project root:
+
+```bash
+npx strapi-types init
+```
+
+It asks for the Strapi URL, output directory, and format, then adds `strapi:generate` / `strapi:check` scripts to your `package.json`. With Strapi running, generate the types and a typed client into your project, and commit the result:
+
+```bash
+npm run strapi:generate
+```
+
+Or skip the scaffolder and run the generator directly:
 
 ```bash
 npx strapi-types generate --url http://localhost:1337 --output ./src/strapi

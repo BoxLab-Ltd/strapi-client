@@ -4,6 +4,40 @@ The `strapi-types` CLI fetches your Strapi schema and generates TypeScript types
 
 ## Commands
 
+### `init`
+
+Sets up the committed-codegen workflow in your project: validates your choices and adds `strapi:generate` / `strapi:check` scripts to `package.json`.
+
+```bash
+npx strapi-types init
+```
+
+Run it from your project root (where `package.json` lives). In an interactive terminal it asks for the Strapi URL, output directory, and format — pass flags to skip individual questions, or `--yes` (or `--silent`) to accept the defaults. In CI and other non-interactive shells it never prompts and falls back to the defaults.
+
+**Options:**
+
+| Option     | Description                                                                                                                                                                          | Default        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| `--url`    | Strapi URL to bake into the scripts. Only an explicitly passed (or typed) URL is written — with `STRAPI_URL` or the default, scripts omit `--url` so the environment stays in charge | omitted        |
+| `--output` | Output directory for generated files (your source tree, committed)                                                                                                                   | `./src/strapi` |
+| `--format` | `js` (compiled `.js` + `.d.ts`) or `ts` (raw `.ts`)                                                                                                                                  | `js`           |
+| `--yes`    | Accept defaults for anything not passed; never prompt                                                                                                                                | `false`        |
+| `--force`  | Overwrite conflicting `strapi:*` scripts (other keys are never touched)                                                                                                              | `false`        |
+| `--silent` | Suppress output messages; implies `--yes` (never prompts)                                                                                                                            | `false`        |
+
+What it writes:
+
+```json
+{
+    "scripts": {
+        "strapi:generate": "strapi-types generate --output ./src/strapi",
+        "strapi:check": "strapi-types check --output ./src/strapi"
+    }
+}
+```
+
+The command is idempotent — re-running it with the same answers changes nothing, and your `package.json` indentation, line endings, and trailing newline are preserved (minified files are reformatted with 2-space indentation). If a `strapi:*` script already exists with a different value, `init` leaves it untouched, prints both versions, and exits `1`; re-run with `--force` to overwrite.
+
 ### `generate`
 
 Connects to your Strapi instance, fetches the schema, and generates TypeScript output files.
@@ -14,14 +48,15 @@ npx strapi-types generate --url http://localhost:1337
 
 **Options:**
 
-| Option     | Description                                                        | Default                                          |
-| ---------- | ------------------------------------------------------------------ | ------------------------------------------------ |
-| `--url`    | Strapi server URL                                                  | `STRAPI_URL` env var                             |
-| `--token`  | API token for authenticated access                                 | `STRAPI_TOKEN` env var                           |
-| `--output` | Output directory for generated files                               | required (your source tree, e.g. `./src/strapi`) |
-| `--silent` | Suppress all console output                                        | `false`                                          |
-| `--force`  | Regenerate even if schema has not changed                          | `false`                                          |
-| `--format` | Output format: `js` (compiled `.js` + `.d.ts`) or `ts` (raw `.ts`) | `js`                                             |
+| Option           | Description                                                                                | Default                                          |
+| ---------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `--url`          | Strapi server URL                                                                          | `STRAPI_URL` env or `http://localhost:1337`      |
+| `--token`        | API token for authenticated access                                                         | `STRAPI_TOKEN` env var                           |
+| `--output`       | Output directory for generated files                                                       | required (your source tree, e.g. `./src/strapi`) |
+| `--silent`       | Suppress all console output                                                                | `false`                                          |
+| `--force`        | Regenerate even if schema has not changed                                                  | `false`                                          |
+| `--format`       | Output format: `js` (compiled `.js` + `.d.ts`) or `ts` (raw `.ts`)                         | `js`                                             |
+| `--no-typecheck` | Write output even if it fails type-checking (escape hatch for strict-only false positives) | type-checking on                                 |
 
 **Examples:**
 
@@ -133,15 +168,19 @@ npx strapi-types generate --url http://localhost:1337 --output ./src/strapi --fo
 
 ## Usage in package.json Scripts
 
-A typical setup in your frontend project:
+`strapi-types init` sets this up for you:
 
 ```json
 {
     "scripts": {
-        "generate-types": "strapi-types generate --output ./src/strapi",
-        "check-strapi": "strapi-types check --output ./src/strapi",
-        "dev": "strapi-types watch --output ./src/strapi & next dev",
-        "build": "strapi-types generate --output ./src/strapi --force && next build"
+        "strapi:generate": "strapi-types generate --output ./src/strapi",
+        "strapi:check": "strapi-types check --output ./src/strapi"
     }
 }
 ```
+
+Run `npm run strapi:generate` after schema changes, and `npm run strapi:check` in CI to catch drift.
+
+::: tip
+Earlier versions of this page suggested `generate-types` / `check-strapi` script names — `init` writes the namespaced pair instead, so remove the old entries if you followed that recipe. For Next.js projects, prefer the [`withStrapiTypes` wrapper](/guide/nextjs) for dev/build regeneration; `strapi:check` remains useful in CI either way.
+:::

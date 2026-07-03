@@ -4,7 +4,7 @@ This page explains the structure of the TypeScript files produced by the `strapi
 
 ## Output Files
 
-By default, generated files are written to `./dist`. You can change this with the `--output` flag.
+Generated files are written to the directory you pass with the required `--output` flag — a directory in your source tree that you commit, e.g. `./src/strapi`. The default `--format js` emits compiled `.js` + `.d.ts`; `--format ts` emits raw `.ts` instead.
 
 | File          | Description                                                                                             |
 | ------------- | ------------------------------------------------------------------------------------------------------- |
@@ -15,7 +15,7 @@ By default, generated files are written to `./dist`. You can change this with th
 | `index.d.ts`  | Type declarations for the index                                                                         |
 
 ```
-dist/
+src/strapi/
   types.d.ts        # Type definitions
   client.js         # Runtime client code + SCHEMA_HASH constant
   client.d.ts       # Client type declarations

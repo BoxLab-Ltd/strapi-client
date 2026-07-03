@@ -27,7 +27,14 @@ export default {
 
 ### 3. Generate types
 
-Generate into your source tree and commit the result:
+Scaffold the workflow (adds `strapi:generate` / `strapi:check` scripts to your `package.json`), then generate into your source tree and commit the result:
+
+```bash
+npx strapi-types init
+npm run strapi:generate
+```
+
+Or run the generator directly:
 
 ```bash
 npx strapi-types generate --url http://localhost:1337 --output ./src/strapi
