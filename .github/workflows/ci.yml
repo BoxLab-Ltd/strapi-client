@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -35,3 +35,16 @@ jobs:
 
       - name: Test
         run: yarn test
+
+  # The main ruleset requires a single "verify" status check, but a matrix
+  # job reports per-entry contexts ("verify (22)"), so no check ever matched
+  # and every PR sat BLOCKED. This aggregate reports the one context the
+  # ruleset expects, whatever the matrix looks like.
+  verify:
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if the test matrix failed
+        if: ${{ needs.test.result != 'success' }}
+        run: exit 1
