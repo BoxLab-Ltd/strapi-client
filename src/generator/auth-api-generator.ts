@@ -203,6 +203,60 @@ export class AuthApiGenerator {
             ],
         })
 
+        // Session management endpoints (users-permissions 5.43+). Entries are
+        // sanitized server-side (sanitizeSessionEntry) — no tokens, no
+        // internal ids. Emitted in both modes: the routes exist on legacy
+        // backends too (they just answer 404 there).
+        sf.addInterface({
+            name: 'AuthSessionEntry',
+            isExported: true,
+            properties: [
+                {
+                    name: 'id',
+                    type: 'string',
+                    docs: ['The sessionId — pass to revokeSession().'],
+                },
+                { name: 'deviceId', type: 'string', hasQuestionToken: true },
+                {
+                    name: 'deviceName',
+                    type: 'string',
+                    hasQuestionToken: true,
+                    docs: ['e.g. "Chrome on macOS".'],
+                },
+                {
+                    name: 'current',
+                    type: 'boolean',
+                    docs: ['Whether this is the session making the request.'],
+                },
+                {
+                    name: 'loginAt',
+                    type: 'string',
+                    hasQuestionToken: true,
+                    docs: ['ISO date.'],
+                },
+                {
+                    name: 'lastActiveAt',
+                    type: 'string',
+                    hasQuestionToken: true,
+                    docs: ['ISO date, updated on token rotation.'],
+                },
+            ],
+        })
+
+        sf.addInterface({
+            name: 'AuthSessionsResponse',
+            isExported: true,
+            properties: [{ name: 'data', type: 'AuthSessionEntry[]' }],
+        })
+
+        // DELETE /api/auth/sessions/:sessionId answers 200 { data: {} }
+        // (404 when the session is unknown or belongs to another user).
+        sf.addInterface({
+            name: 'RevokeSessionResponse',
+            isExported: true,
+            properties: [{ name: 'data', type: 'Record<string, never>' }],
+        })
+
         return sf.getFullText()
     }
 
@@ -393,6 +447,10 @@ ${bodyBlock}
             return 'User[]'
         } else if (route.action === 'forgotPassword') {
             return 'ForgotPasswordResponse'
+        } else if (route.action === 'getSessions') {
+            return 'AuthSessionsResponse'
+        } else if (route.action === 'revokeSession') {
+            return 'RevokeSessionResponse'
         }
         return 'any'
     }

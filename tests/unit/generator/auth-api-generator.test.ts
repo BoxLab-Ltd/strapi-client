@@ -681,3 +681,55 @@ describe('generateAuthApiClass — refresh mode clearToken dedup', () => {
         expect((generated.match(/async clearToken\(/g) || []).length).toBe(1)
     })
 })
+
+describe('generateAuthApiClass — session management route typing', () => {
+    const sessionRoutes: ParsedRoute[] = [
+        {
+            method: 'GET',
+            path: '/auth/sessions',
+            handler: 'plugin::users-permissions.auth.getSessions',
+            controller: 'auth',
+            action: 'getSessions',
+            params: [],
+        },
+        {
+            method: 'DELETE',
+            path: '/auth/sessions/:sessionId',
+            handler: 'plugin::users-permissions.auth.revokeSession',
+            controller: 'auth',
+            action: 'revokeSession',
+            params: ['sessionId'],
+        },
+    ]
+
+    it('emits the session entry/response types in both modes', () => {
+        for (const mode of [undefined, 'refresh'] as const) {
+            const types = generator.generateAuthTypes(mode)
+            expect(types).toContain('export interface AuthSessionEntry {')
+            expect(types).toContain('  current: boolean')
+            expect(types).toContain('  lastActiveAt?: string')
+            expect(types).toContain('export interface AuthSessionsResponse {')
+            expect(types).toContain('  data: AuthSessionEntry[]')
+            expect(types).toContain('export interface RevokeSessionResponse {')
+        }
+    })
+
+    it('types getSessions and revokeSession instead of any (refresh mode)', () => {
+        const out = generator.generateAuthApiClass(sessionRoutes, [], 'refresh')
+        expect(out).toContain(
+            'async getSessions(nextOptions?: NextOptions): Promise<AuthSessionsResponse>',
+        )
+        expect(out).toContain(
+            'async revokeSession(sessionId: string, nextOptions?: NextOptions): Promise<RevokeSessionResponse>',
+        )
+        expect(out).not.toContain(
+            'getSessions(nextOptions?: NextOptions): Promise<any>',
+        )
+    })
+
+    it('types them identically in legacy mode (routes exist there too, answering 404)', () => {
+        const out = generator.generateAuthApiClass(sessionRoutes, [])
+        expect(out).toContain('Promise<AuthSessionsResponse>')
+        expect(out).toContain('Promise<RevokeSessionResponse>')
+    })
+})

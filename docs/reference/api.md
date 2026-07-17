@@ -377,6 +377,20 @@ auth.refresh(): Promise<boolean>
 auth.logout(): Promise<void>
 ```
 
+When the backend exposes the session management routes, they are generated fully typed as well:
+
+```ts
+// List the user's active sessions. Entries are sanitized server-side —
+// no tokens or internal ids.
+auth.getSessions(): Promise<AuthSessionsResponse>
+// → { data: AuthSessionEntry[] }
+//   AuthSessionEntry: { id, deviceId?, deviceName?, current, loginAt?, lastActiveAt? }
+
+// Revoke one session by its id (404 if unknown or another user's).
+auth.revokeSession(sessionId: string): Promise<RevokeSessionResponse>
+// → { data: {} }
+```
+
 Access tokens from `login`/`register`/etc. are stored in memory automatically, and requests that fail with 401 — or with 403 when sent anonymously, which is how Strapi answers a protected route hit with no credentials (the page-reload bootstrap case) — are retried once after a transparent single-flight refresh. See [Authentication → Session Auth](/advanced/authentication#session-auth-refresh-tokens-strapi-5-43) for the full flow.
 
 ## QueryParams
