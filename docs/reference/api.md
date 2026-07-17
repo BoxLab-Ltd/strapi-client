@@ -377,7 +377,7 @@ auth.refresh(): Promise<boolean>
 auth.logout(): Promise<void>
 ```
 
-Access tokens from `login`/`register`/etc. are stored in memory automatically, and requests that fail with 401 are retried once after a transparent single-flight refresh. See [Authentication → Session Auth](/advanced/authentication#session-auth-refresh-tokens-strapi-5-43) for the full flow.
+Access tokens from `login`/`register`/etc. are stored in memory automatically, and requests that fail with 401 — or with 403 when sent anonymously, which is how Strapi answers a protected route hit with no credentials (the page-reload bootstrap case) — are retried once after a transparent single-flight refresh. See [Authentication → Session Auth](/advanced/authentication#session-auth-refresh-tokens-strapi-5-43) for the full flow.
 
 ## QueryParams
 

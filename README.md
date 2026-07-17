@@ -92,7 +92,7 @@ await strapi.articles.find() // expired token? refreshed & retried transparently
 await strapi.auth.logout() // revoke the session server-side
 ```
 
-On a 401 the client performs a single-flight `POST /api/auth/refresh` and retries the request once; a dead session surfaces the original 401. The flow is browser-only (server-side code keeps using API tokens) and steps aside whenever you manage the `Authorization` header yourself. Legacy backends are untouched — the generated client behaves exactly as before. See [Authentication](https://boxlab-ltd.github.io/strapi-typed-client/advanced/authentication) for details.
+On a 401 — or a 403 from an anonymous request, which is what Strapi actually answers when a protected route is hit with no credentials (the page-reload bootstrap case) — the client performs a single-flight `POST /api/auth/refresh` and retries the request once; a dead session surfaces the original error. The flow is browser-only (server-side code keeps using API tokens) and steps aside whenever you manage the `Authorization` header yourself. Legacy backends are untouched — the generated client behaves exactly as before. See [Authentication](https://boxlab-ltd.github.io/strapi-typed-client/advanced/authentication) for details.
 
 ## Requirements
 

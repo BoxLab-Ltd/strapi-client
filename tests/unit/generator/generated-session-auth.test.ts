@@ -46,6 +46,19 @@ function unauthorized(): Response {
     )
 }
 
+function forbidden(): Response {
+    return json(
+        {
+            error: {
+                status: 403,
+                name: 'ForbiddenError',
+                message: 'Forbidden',
+            },
+        },
+        403,
+    )
+}
+
 function authHeader(init: RequestInit): string | undefined {
     const h = init.headers as Record<string, string> | undefined
     if (!h) return undefined
@@ -54,16 +67,22 @@ function authHeader(init: RequestInit): string | undefined {
 }
 
 /**
- * Fake backend: /api/auth/refresh is scripted per test; every other request
- * succeeds only with a Bearer token from `validTokens`.
+ * Fake backend mirroring Strapi's real content-API auth semantics: an
+ * anonymous request to a protected route authenticates as the public role
+ * and gets 403 ForbiddenError (never 401); a provided-but-invalid Bearer
+ * gets 401 UnauthorizedError; a Bearer from `forbidTokens` is authenticated
+ * but lacks the permission — an honest 403. /api/auth/refresh is scripted
+ * per test.
  */
 function fakeBackend(opts: {
     validTokens?: string[]
+    forbidTokens?: string[]
     refresh?: (init: RequestInit) => Response | Promise<Response>
     login?: () => Response
 }): { fetch: typeof fetch; calls: Captured[]; refreshCalls: () => number } {
     const calls: Captured[] = []
     const valid = new Set(opts.validTokens ?? [])
+    const noPermission = new Set(opts.forbidTokens ?? [])
     const fn = async (url: string | URL | Request, init?: RequestInit) => {
         const u = String(url)
         const i = init ?? {}
@@ -79,9 +98,10 @@ function fakeBackend(opts: {
             return json({ ok: true })
         }
         const bearer = authHeader(i)
-        if (bearer && valid.has(bearer.replace('Bearer ', ''))) {
-            return json({ data: [] })
-        }
+        if (!bearer) return forbidden()
+        const token = bearer.replace('Bearer ', '')
+        if (noPermission.has(token)) return forbidden()
+        if (valid.has(token)) return json({ data: [] })
         return unauthorized()
     }
     return {
@@ -159,7 +179,7 @@ describe('generated client session-auth runtime behaviour', () => {
         expect(authHeader(last.init)).toBe('Bearer A')
     })
 
-    it('on 401 refreshes once, retries the original request, and does not surface the absorbed 401', async () => {
+    it('bootstrap: an anonymous 403 refreshes once, retries, and does not surface the absorbed error', async () => {
         inBrowser()
         const backend = fakeBackend({
             validTokens: ['B'],
@@ -186,7 +206,7 @@ describe('generated client session-auth runtime behaviour', () => {
         expect(errors).toEqual([])
     })
 
-    it('N parallel 401s share a single-flight refresh', async () => {
+    it('N parallel bootstrap 403s share a single-flight refresh', async () => {
         inBrowser()
         const backend = fakeBackend({
             validTokens: ['B'],
@@ -232,6 +252,42 @@ describe('generated client session-auth runtime behaviour', () => {
         expect(authHeader(anon.init)).toBeUndefined()
     })
 
+    it('an honest 403 under the session Bearer passes through untouched (no refresh)', async () => {
+        inBrowser()
+        const backend = fakeBackend({
+            // 'A' authenticates fine but lacks the permission for the route
+            forbidTokens: ['A'],
+            login: () => json({ jwt: 'A', user: { id: 1 } }),
+            refresh: () => json({ jwt: 'A' }),
+        })
+        const client = new RefreshClient({
+            baseURL: 'http://x',
+            fetch: backend.fetch,
+        })
+        await client.auth.login({ identifier: 'u', password: 'p' })
+        await expect(client.items.find()).rejects.toMatchObject({
+            status: 403,
+        })
+        expect(backend.refreshCalls()).toBe(0)
+    })
+
+    it('an honest 403 under a static config token passes through untouched', async () => {
+        inBrowser()
+        const backend = fakeBackend({
+            forbidTokens: ['T'],
+            refresh: () => json({ jwt: 'B' }),
+        })
+        const client = new RefreshClient({
+            baseURL: 'http://x',
+            fetch: backend.fetch,
+            token: 'T',
+        })
+        await expect(client.items.find()).rejects.toMatchObject({
+            status: 403,
+        })
+        expect(backend.refreshCalls()).toBe(0)
+    })
+
     it('retries only once: a 401 after a successful refresh is surfaced', async () => {
         inBrowser()
         const backend = fakeBackend({
@@ -248,7 +304,7 @@ describe('generated client session-auth runtime behaviour', () => {
         expect(backend.refreshCalls()).toBe(1)
     })
 
-    it('SSR guard: in Node (no window) a 401 never triggers a refresh', async () => {
+    it('SSR guard: in Node (no window) a bootstrap 403 never triggers a refresh', async () => {
         const backend = fakeBackend({
             refresh: () => json({ jwt: 'B' }),
         })
@@ -257,7 +313,7 @@ describe('generated client session-auth runtime behaviour', () => {
             fetch: backend.fetch,
         })
         await expect(client.items.find()).rejects.toMatchObject({
-            status: 401,
+            status: 403,
         })
         expect(backend.refreshCalls()).toBe(0)
     })
@@ -345,7 +401,7 @@ describe('generated client session-auth runtime behaviour', () => {
         expect(authHeader(after.init)).toBeUndefined()
     })
 
-    it('legacy client: login does not attach Bearer and a 401 never triggers a refresh', async () => {
+    it('legacy client: login does not attach Bearer and an anonymous 403 never triggers a refresh', async () => {
         inBrowser()
         const backend = fakeBackend({
             login: () => json({ jwt: 'A', user: { id: 1 } }),
@@ -356,7 +412,7 @@ describe('generated client session-auth runtime behaviour', () => {
         })
         await client.auth.login({ identifier: 'u', password: 'p' })
         await expect(client.items.find()).rejects.toMatchObject({
-            status: 401,
+            status: 403,
         })
         expect(backend.refreshCalls()).toBe(0)
         const find = backend.calls.find(c => c.url.endsWith('/api/items'))!
@@ -403,12 +459,12 @@ describe('generated client session-auth runtime behaviour', () => {
             authMode: 'legacy',
         })
         await expect(client.items.find()).rejects.toMatchObject({
-            status: 401,
+            status: 403,
         })
         expect(backend.refreshCalls()).toBe(0)
     })
 
-    it('dead-session latch: a rejected refresh silences the auto-flow on later 401s', async () => {
+    it('dead-session latch: a rejected refresh silences the auto-flow on later bootstrap 403s', async () => {
         inBrowser()
         const backend = fakeBackend({
             refresh: () => unauthorized(),
@@ -417,10 +473,10 @@ describe('generated client session-auth runtime behaviour', () => {
             baseURL: 'http://x',
             fetch: backend.fetch,
         })
-        await expect(client.items.find()).rejects.toMatchObject({ status: 401 })
+        await expect(client.items.find()).rejects.toMatchObject({ status: 403 })
         expect(backend.refreshCalls()).toBe(1)
-        // second 401 must not re-hit /api/auth/refresh
-        await expect(client.items.find()).rejects.toMatchObject({ status: 401 })
+        // the second bootstrap 403 must not re-hit /api/auth/refresh
+        await expect(client.items.find()).rejects.toMatchObject({ status: 403 })
         expect(backend.refreshCalls()).toBe(1)
     })
 
@@ -439,7 +495,7 @@ describe('generated client session-auth runtime behaviour', () => {
             baseURL: 'http://x',
             fetch: backend.fetch,
         })
-        await expect(client.items.find()).rejects.toMatchObject({ status: 401 })
+        await expect(client.items.find()).rejects.toMatchObject({ status: 403 })
         expect(backend.refreshCalls()).toBe(1) // latched
         await client.auth.login({ identifier: 'u', password: 'p' })
         // stale access token → 401 → the flow is allowed to refresh again
@@ -459,7 +515,7 @@ describe('generated client session-auth runtime behaviour', () => {
             baseURL: 'http://x',
             fetch: backend.fetch,
         })
-        await expect(client.items.find()).rejects.toMatchObject({ status: 401 })
+        await expect(client.items.find()).rejects.toMatchObject({ status: 403 })
         expect(backend.refreshCalls()).toBe(1) // latched
         sessionAlive = true // e.g. the user logged in from another tab
         await expect(client.auth.refresh()).resolves.toBe(true)
@@ -480,8 +536,8 @@ describe('generated client session-auth runtime behaviour', () => {
         })
         await client.auth.login({ identifier: 'u', password: 'p' })
         await client.auth.logout()
-        // anonymous 401 must NOT silently resurrect the session via the cookie
-        await expect(client.items.find()).rejects.toMatchObject({ status: 401 })
+        // a bootstrap 403 must NOT silently resurrect the session via the cookie
+        await expect(client.items.find()).rejects.toMatchObject({ status: 403 })
         expect(backend.refreshCalls()).toBe(0)
     })
 
@@ -523,14 +579,14 @@ describe('generated client session-auth runtime behaviour', () => {
             baseURL: 'http://x',
             fetch: backend.fetch,
         })
-        // anonymous 401 starts a refresh that stays in flight...
+        // an anonymous bootstrap 403 starts a refresh that stays in flight...
         const pending = client.items.find()
         await new Promise(r => setTimeout(r, 10))
         // ...the user signs out while it is on the wire...
         await client.auth.logout()
         // ...then the refresh resolves successfully — too late, logout won.
         releaseRefresh(json({ jwt: 'NEW' }))
-        await expect(pending).rejects.toMatchObject({ status: 401 })
+        await expect(pending).rejects.toMatchObject({ status: 403 })
         // the signed-out client must stay signed out: no Bearer, no re-refresh
         await client.items.find().catch(() => undefined)
         const after = backend.calls[backend.calls.length - 1]
@@ -554,7 +610,7 @@ describe('generated client session-auth runtime behaviour', () => {
             baseURL: 'http://x',
             fetch: backend.fetch,
         })
-        // anonymous 401 starts a refresh that stays in flight...
+        // an anonymous bootstrap 403 starts a refresh that stays in flight...
         const pending = client.items.find()
         await new Promise(r => setTimeout(r, 10))
         // ...the user logs in while it is on the wire...

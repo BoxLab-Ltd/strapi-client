@@ -468,7 +468,7 @@ import type { ${filterImports.join(', ')} } from './types.js'`
                     type: "'legacy' | 'refresh'",
                     hasQuestionToken: true,
                     docs: [
-                        "Override the users-permissions JWT mode baked in at generation time (see the exported AUTH_MODE const). 'refresh' enables the session flow: in-memory access token, `Authorization: Bearer` on every request, and an automatic single-flight refresh + retry on 401. Browser-only — in Node the session flow is inert (use API tokens server-side). Set `credentials: 'include'` alongside it when the refresh token lives in an httpOnly cookie.",
+                        "Override the users-permissions JWT mode baked in at generation time (see the exported AUTH_MODE const). 'refresh' enables the session flow: in-memory access token, `Authorization: Bearer` on every request, and an automatic single-flight refresh + retry on 401 (expired token) or an anonymous 403 (Strapi answers ForbiddenError, not 401, when a protected route is hit with no credentials — the page-reload bootstrap case). Browser-only — in Node the session flow is inert (use API tokens server-side). Set `credentials: 'include'` alongside it when the refresh token lives in an httpOnly cookie.",
                     ],
                 },
                 {
@@ -1131,14 +1131,20 @@ class BaseAPI {
     }
 
     if (!response.ok) {
-      // Session flow: an expired access token answers 401 — refresh once
-      // (single-flight across concurrent requests) and retry the original
-      // request one time. Only for requests the session flow itself
-      // authorized: sent with OUR session Bearer, or anonymously (page-load
-      // bootstrap via cookie). If someone else set Authorization — a static
-      // config.token, an onRequest hook, per-request headers — the flow
-      // steps aside and the 401 propagates untouched. onError is NOT
-      // invoked for a 401 that a successful refresh absorbs.
+      // Session flow: refresh once (single-flight across concurrent
+      // requests) and retry the original request one time. Only for
+      // requests the session flow itself authorized: sent with OUR session
+      // Bearer, or anonymously. If someone else set Authorization — a
+      // static config.token, an onRequest hook, per-request headers — the
+      // flow steps aside and the error propagates untouched. onError is
+      // NOT invoked for an error that a successful refresh absorbs.
+      //
+      // Two trigger statuses, matching Strapi's semantics: 401 means
+      // "credentials were provided and are invalid" (expired session
+      // Bearer); 403 on a FULLY anonymous request is the page-load
+      // bootstrap case — an anonymous caller authenticates as the public
+      // role and a protected route answers ForbiddenError, never 401. A
+      // 403 under any Bearer is an honest permission error and passes.
       const sentAuthValues = authHeaderValues(
         fetchOptions.headers as Record<string, string>
       )
@@ -1147,13 +1153,16 @@ class BaseAPI {
         (sentAuthValues.length === 1 &&
           sessionToken !== undefined &&
           sentAuthValues[0] === \`Bearer \${sessionToken}\`)
+      const refreshTrigger =
+        response.status === 401
+          ? sessionOwnsRequest
+          : response.status === 403 && sentAuthValues.length === 0
       if (
-        response.status === 401 &&
+        refreshTrigger &&
         !_isRetry &&
         this._sessionEnabled() &&
-        sessionOwnsRequest &&
-        // dead-session latch: don't re-hit the backend on every 401 once a
-        // refresh was definitively rejected; login or auth.refresh() lifts it
+        // dead-session latch: don't re-hit the backend on every 401/403 once
+        // a refresh was definitively rejected; login or auth.refresh() lifts it
         !getAuthSession(this.config).dead
       ) {
         const refreshed = await this._refreshSession()
