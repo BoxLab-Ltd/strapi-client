@@ -14,15 +14,16 @@ const strapi = new StrapiClient(config: StrapiClientConfig)
 
 **StrapiClientConfig:**
 
-| Property         | Type                 | Required | Description                                                   |
-| ---------------- | -------------------- | -------- | ------------------------------------------------------------- |
-| `baseURL`        | `string`             | Yes      | Strapi server URL (e.g., `http://localhost:1337`)             |
-| `token`          | `string`             | No       | Bearer token for authenticated requests                       |
-| `fetch`          | `typeof fetch`       | No       | Custom fetch function (defaults to `globalThis.fetch`)        |
-| `debug`          | `boolean`            | No       | Log all requests to console                                   |
-| `credentials`    | `RequestCredentials` | No       | Credentials mode for fetch (`include`, `same-origin`, `omit`) |
-| `timeout`        | `number`             | No       | Request timeout in milliseconds. Aborts request if exceeded   |
-| `validateSchema` | `boolean`            | No       | Check schema hash on init and warn if types are outdated      |
+| Property         | Type                    | Required | Description                                                                                                                                                             |
+| ---------------- | ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseURL`        | `string`                | Yes      | Strapi server URL (e.g., `http://localhost:1337`)                                                                                                                       |
+| `token`          | `string`                | No       | Bearer token for authenticated requests                                                                                                                                 |
+| `fetch`          | `typeof fetch`          | No       | Custom fetch function (defaults to `globalThis.fetch`)                                                                                                                  |
+| `debug`          | `boolean`               | No       | Log all requests to console                                                                                                                                             |
+| `credentials`    | `RequestCredentials`    | No       | Credentials mode for fetch (`include`, `same-origin`, `omit`)                                                                                                           |
+| `authMode`       | `'legacy' \| 'refresh'` | No       | Override the users-permissions JWT mode baked in at generation time (`AUTH_MODE`). See [Session Auth](/advanced/authentication#session-auth-refresh-tokens-strapi-5-43) |
+| `timeout`        | `number`                | No       | Request timeout in milliseconds. Aborts request if exceeded                                                                                                             |
+| `validateSchema` | `boolean`               | No       | Check schema hash on init and warn if types are outdated                                                                                                                |
 
 ```ts
 // Minimal configuration

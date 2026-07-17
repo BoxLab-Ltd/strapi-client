@@ -660,3 +660,24 @@ describe('generateAuthApiClass — refresh mode', () => {
         expect(legacy).toContain('@deprecated Use `clearToken()`')
     })
 })
+
+describe('generateAuthApiClass — refresh mode clearToken dedup', () => {
+    it('filters a discovered clearToken route so the client-side helper wins', () => {
+        const authRoutes: ParsedRoute[] = [
+            {
+                method: 'POST',
+                path: '/auth/clear-token',
+                handler: 'plugin::users-permissions.auth.clearToken',
+                controller: 'auth',
+                action: 'clearToken',
+                params: [],
+            },
+        ]
+        const generated = generator.generateAuthApiClass(
+            authRoutes,
+            [],
+            'refresh',
+        )
+        expect((generated.match(/async clearToken\(/g) || []).length).toBe(1)
+    })
+})

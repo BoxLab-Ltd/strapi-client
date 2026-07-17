@@ -224,7 +224,10 @@ export class AuthApiGenerator {
         // Refresh-mode backends register these as regular routes — the typed implementations must win
         if (authMode === 'refresh') {
             effectiveAuthRoutes = effectiveAuthRoutes.filter(
-                r => !['refresh', 'logout'].includes(this.methodNameFor(r)),
+                r =>
+                    !['refresh', 'logout', 'clearToken'].includes(
+                        this.methodNameFor(r),
+                    ),
             )
         }
 
@@ -540,6 +543,9 @@ ${bodyBlock}
     session.accessToken = undefined
     session.refreshToken = undefined
     session.dead = true
+    // Invalidate any in-flight refresh: signing out must win the race — a
+    // late refresh success must not resurrect this cleared session.
+    session.epoch++
   }`
 
         if (authMode === 'refresh') {
@@ -550,6 +556,9 @@ ${bodyBlock}
    * Always attempts the request: unlike the automatic 401 handling it goes
    * through the dead-session latch (and lifts it on success), so use it to
    * resume a session started elsewhere, e.g. a login in another tab.
+   * Browser-only persistence: in Node the request is still made and the
+   * result reported, but no tokens are stored — a shared server-side client
+   * must never keep one caller's session for the next caller.
    * @returns false when there is no live session to resume.
    */
   async refresh(): Promise<boolean> {

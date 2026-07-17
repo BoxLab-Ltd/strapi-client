@@ -775,8 +775,9 @@ export function isStrapiErrorOf<N extends keyof StrapiErrorDetailsMap>(
         return `// Session state for the users-permissions refresh flow. Keyed by the
 // config object — every API class of one StrapiClient shares the same config
 // reference, so the session (and its single-flight refresh) is client-wide
-// without widening the public config shape.
-interface AuthSessionState {
+// without widening the public config shape. The leading underscore keeps the
+// name from colliding with a user content type imported from './types.js'.
+interface _AuthSessionState {
   accessToken?: string
   refreshToken?: string
   refreshPromise?: Promise<boolean>
@@ -785,17 +786,32 @@ interface AuthSessionState {
   // next login or explicit auth.refresh(), instead of re-hitting the backend
   // on every 401. Transient failures (5xx, network) never set this.
   dead?: boolean
+  // Bumped by login (_captureSession) and clearToken/logout. An in-flight
+  // refresh snapshots it and discards its own outcome when it changed:
+  // whoever bumped the epoch is authoritative — a late refresh success must
+  // not resurrect a logged-out session, and a late 4xx must not wipe a
+  // fresh login.
+  epoch: number
 }
 
-const authSessionStore = new WeakMap<StrapiClientConfig, AuthSessionState>()
+const authSessionStore = new WeakMap<StrapiClientConfig, _AuthSessionState>()
 
-function getAuthSession(config: StrapiClientConfig): AuthSessionState {
+function getAuthSession(config: StrapiClientConfig): _AuthSessionState {
   let session = authSessionStore.get(config)
   if (!session) {
-    session = {}
+    session = { epoch: 0 }
     authSessionStore.set(config, session)
   }
   return session
+}
+
+// All header keys spelling 'authorization', in any casing. Header objects are
+// case-sensitive plain records here, but HTTP semantics (and fetch's wire
+// merging) are case-insensitive — auth ownership decisions must be too.
+function authHeaderValues(headers: Record<string, string>): string[] {
+  return Object.keys(headers)
+    .filter(k => k.toLowerCase() === 'authorization')
+    .map(k => headers[k])
 }
 
 // Base API class with shared logic
@@ -835,8 +851,10 @@ class BaseAPI {
       if (typeof auth.refreshToken === 'string') {
         session.refreshToken = auth.refreshToken
       }
-      // A fresh login revives the session — lift the dead-session latch.
+      // A fresh login revives the session — lift the dead-session latch and
+      // invalidate any refresh still in flight (its outcome is stale now).
       session.dead = undefined
+      session.epoch++
     }
     return res
   }
@@ -856,8 +874,16 @@ class BaseAPI {
     return session.refreshPromise
   }
 
-  private async _performTokenRefresh(session: AuthSessionState): Promise<boolean> {
+  private async _performTokenRefresh(session: _AuthSessionState): Promise<boolean> {
     const fetchFn = this.config.fetch || globalThis.fetch
+    // Snapshot the epoch: if login()/clearToken() mutate the session while
+    // this request is on the wire, their state is authoritative and this
+    // refresh's outcome is discarded (see _AuthSessionState.epoch).
+    const epoch = session.epoch
+    // Outside the browser nothing is persisted — an explicit auth.refresh()
+    // still reports whether a live session exists, but a shared server-side
+    // client must never store one caller's rotated token for the next caller.
+    const persist = this._sessionEnabled()
     try {
       // Raw fetch, not this.request() — a 401 here must not recurse into
       // another refresh, and no Authorization is attached (Strapi rejects
@@ -891,11 +917,12 @@ class BaseAPI {
       }
 
       const response = await fetchFn(url, init)
+      if (session.epoch !== epoch) return !!session.accessToken
       if (!response.ok) {
         // 4xx = the session is gone for good (401 dead, 403 rejected,
         // 404 legacy backend) — drop it and latch. 5xx is transient:
         // keep everything and let the original 401 propagate.
-        if (response.status < 500) {
+        if (response.status < 500 && persist) {
           session.accessToken = undefined
           session.refreshToken = undefined
           session.dead = true
@@ -906,17 +933,22 @@ class BaseAPI {
         jwt?: string
         refreshToken?: string
       } | null
+      if (session.epoch !== epoch) return !!session.accessToken
       if (!data?.jwt) {
         // 2xx without a jwt — broken contract, retrying won't help.
-        session.accessToken = undefined
-        session.dead = true
+        if (persist) {
+          session.accessToken = undefined
+          session.dead = true
+        }
         return false
       }
-      session.accessToken = data.jwt
-      if (data.refreshToken) {
-        session.refreshToken = data.refreshToken
+      if (persist) {
+        session.accessToken = data.jwt
+        if (data.refreshToken) {
+          session.refreshToken = data.refreshToken
+        }
+        session.dead = undefined
       }
-      session.dead = undefined
       return true
     } catch {
       // Network failure — keep the tokens (the session may still be alive)
@@ -955,20 +987,32 @@ class BaseAPI {
       headers['Content-Type'] = 'application/json'
     }
 
-    // With the session flow active the in-memory token wins over the static one.
+    // With the session flow active the in-memory token wins over the static
+    // one. Skip both when the caller's own options already carry an
+    // authorization header (any casing) — that request is not ours to auth.
     const sessionToken = this._sessionEnabled()
       ? getAuthSession(this.config).accessToken
       : undefined
-    if (sessionToken) {
-      headers['Authorization'] = \`Bearer \${sessionToken}\`
-    } else if (this.config.token) {
-      headers['Authorization'] = \`Bearer \${this.config.token}\`
+    if (authHeaderValues(headers).length === 0) {
+      if (sessionToken) {
+        headers['Authorization'] = \`Bearer \${sessionToken}\`
+      } else if (this.config.token) {
+        headers['Authorization'] = \`Bearer \${this.config.token}\`
+      }
     }
 
-    // Merge custom headers from nextOptions
+    // Merge custom headers from nextOptions. An authorization key replaces
+    // any existing spelling — plain records are case-sensitive but the wire
+    // is not, and two surviving spellings would be merged by fetch into one
+    // malformed comma-joined header.
     if (nextOptions?.headers) {
       for (const [key, value] of Object.entries(nextOptions.headers)) {
         if (value !== undefined) {
+          if (key.toLowerCase() === 'authorization') {
+            for (const existing of Object.keys(headers)) {
+              if (existing.toLowerCase() === 'authorization') delete headers[existing]
+            }
+          }
           headers[key] = value
         }
       }
@@ -1019,6 +1063,21 @@ class BaseAPI {
       fetchOptions.body = eff.body
       // Keep the timeout signal unless the hook set its own.
       if (eff.signal) fetchOptions.signal = eff.signal
+
+      // If the hook added its own authorization under a different casing,
+      // drop our session entry so fetch doesn't merge both spellings into
+      // one malformed comma-joined wire header. The hook's credential wins.
+      const hookHeaders = fetchOptions.headers as Record<string, string>
+      if (sessionToken && authHeaderValues(hookHeaders).length > 1) {
+        for (const key of Object.keys(hookHeaders)) {
+          if (
+            key.toLowerCase() === 'authorization' &&
+            hookHeaders[key] === \`Bearer \${sessionToken}\`
+          ) {
+            delete hookHeaders[key]
+          }
+        }
+      }
     }
 
     if (this.config.debug) {
@@ -1080,10 +1139,14 @@ class BaseAPI {
       // config.token, an onRequest hook, per-request headers — the flow
       // steps aside and the 401 propagates untouched. onError is NOT
       // invoked for a 401 that a successful refresh absorbs.
-      const sentAuth = (fetchOptions.headers as Record<string, string>)['Authorization']
+      const sentAuthValues = authHeaderValues(
+        fetchOptions.headers as Record<string, string>
+      )
       const sessionOwnsRequest =
-        sentAuth === undefined ||
-        (sessionToken !== undefined && sentAuth === \`Bearer \${sessionToken}\`)
+        sentAuthValues.length === 0 ||
+        (sentAuthValues.length === 1 &&
+          sessionToken !== undefined &&
+          sentAuthValues[0] === \`Bearer \${sessionToken}\`)
       if (
         response.status === 401 &&
         !_isRetry &&

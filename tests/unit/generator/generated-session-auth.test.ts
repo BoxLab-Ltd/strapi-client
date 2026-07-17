@@ -47,9 +47,10 @@ function unauthorized(): Response {
 }
 
 function authHeader(init: RequestInit): string | undefined {
-    return (init.headers as Record<string, string> | undefined)?.[
-        'Authorization'
-    ]
+    const h = init.headers as Record<string, string> | undefined
+    if (!h) return undefined
+    const key = Object.keys(h).find(k => k.toLowerCase() === 'authorization')
+    return key ? h[key] : undefined
 }
 
 /**
@@ -507,6 +508,116 @@ describe('generated client session-auth runtime behaviour', () => {
             { refreshToken: 'R1' },
             { refreshToken: 'R1' },
         ])
+    })
+
+    it('race: a late refresh success does not resurrect a session cleared by logout()', async () => {
+        inBrowser()
+        let releaseRefresh!: (r: Response) => void
+        const held = new Promise<Response>(res => {
+            releaseRefresh = res
+        })
+        const backend = fakeBackend({
+            refresh: () => held,
+        })
+        const client = new RefreshClient({
+            baseURL: 'http://x',
+            fetch: backend.fetch,
+        })
+        // anonymous 401 starts a refresh that stays in flight...
+        const pending = client.items.find()
+        await new Promise(r => setTimeout(r, 10))
+        // ...the user signs out while it is on the wire...
+        await client.auth.logout()
+        // ...then the refresh resolves successfully — too late, logout won.
+        releaseRefresh(json({ jwt: 'NEW' }))
+        await expect(pending).rejects.toMatchObject({ status: 401 })
+        // the signed-out client must stay signed out: no Bearer, no re-refresh
+        await client.items.find().catch(() => undefined)
+        const after = backend.calls[backend.calls.length - 1]
+        expect(after.url).toBe('http://x/api/items')
+        expect(authHeader(after.init)).toBeUndefined()
+        expect(backend.refreshCalls()).toBe(1)
+    })
+
+    it('race: a late failing refresh does not wipe a login that happened meanwhile', async () => {
+        inBrowser()
+        let releaseRefresh!: (r: Response) => void
+        const held = new Promise<Response>(res => {
+            releaseRefresh = res
+        })
+        const backend = fakeBackend({
+            validTokens: ['A'],
+            login: () => json({ jwt: 'A', user: { id: 1 } }),
+            refresh: () => held,
+        })
+        const client = new RefreshClient({
+            baseURL: 'http://x',
+            fetch: backend.fetch,
+        })
+        // anonymous 401 starts a refresh that stays in flight...
+        const pending = client.items.find()
+        await new Promise(r => setTimeout(r, 10))
+        // ...the user logs in while it is on the wire...
+        await client.auth.login({ identifier: 'u', password: 'p' })
+        // ...then the stale refresh gets rejected — it must not clobber the login.
+        releaseRefresh(unauthorized())
+        // the held request even recovers: the login's token authorizes its retry
+        await expect(pending).resolves.toEqual([])
+        const result = await client.items.find()
+        expect(result).toEqual([])
+        const last = backend.calls[backend.calls.length - 1]
+        expect(authHeader(last.init)).toBe('Bearer A')
+        expect(backend.refreshCalls()).toBe(1)
+    })
+
+    it('a lowercase authorization header from onRequest wins cleanly (no dual header, no refresh)', async () => {
+        inBrowser()
+        const backend = fakeBackend({
+            validTokens: ['HOOK', 'A'],
+            login: () => json({ jwt: 'A', user: { id: 1 } }),
+        })
+        const client = new RefreshClient({
+            baseURL: 'http://x',
+            fetch: backend.fetch,
+            onRequest: (req: { headers: Record<string, string> }) => {
+                req.headers['authorization'] = 'Bearer HOOK'
+            },
+        })
+        await client.auth.login({ identifier: 'u', password: 'p' })
+        await client.items.find()
+        const find = backend.calls[backend.calls.length - 1]
+        const authKeys = Object.keys(
+            find.init.headers as Record<string, string>,
+        ).filter(k => k.toLowerCase() === 'authorization')
+        // exactly one spelling reaches the wire, and it is the hook's
+        expect(authKeys).toEqual(['authorization'])
+        expect(authHeader(find.init)).toBe('Bearer HOOK')
+        expect(backend.refreshCalls()).toBe(0)
+    })
+
+    it('in Node an explicit refresh() reports the result but persists nothing', async () => {
+        // no window stub — server environment
+        const refreshBodies: unknown[] = []
+        const backend = fakeBackend({
+            refresh: init => {
+                refreshBodies.push(
+                    init.body ? JSON.parse(String(init.body)) : null,
+                )
+                return json({ jwt: 'B', refreshToken: 'R9' })
+            },
+        })
+        const client = new RefreshClient({
+            baseURL: 'http://x',
+            fetch: backend.fetch,
+        })
+        await expect(client.auth.refresh()).resolves.toBe(true)
+        // nothing stored: the next refresh body is still empty (no R9)...
+        await client.auth.refresh()
+        expect(refreshBodies).toEqual([null, null])
+        // ...and requests stay anonymous
+        await client.items.find().catch(() => undefined)
+        const find = backend.calls[backend.calls.length - 1]
+        expect(authHeader(find.init)).toBeUndefined()
     })
 
     it('in Node login() does not capture the session (no silent shared-instance mutation)', async () => {
