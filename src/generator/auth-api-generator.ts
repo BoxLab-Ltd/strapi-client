@@ -1,6 +1,7 @@
 import { Project } from 'ts-morph'
 import { ParsedRoute } from '../shared/route-types.js'
 import { toCamelCase } from '../shared/index.js'
+import type { AuthMode } from '../shared/strapi-schema-types.js'
 
 /**
  * Standard users-permissions auth routes, used as the fallback when the schema
@@ -95,9 +96,16 @@ const DEFAULT_USER_ROUTES: ParsedRoute[] = [
 ]
 
 export class AuthApiGenerator {
-    generateAuthTypes(): string {
+    generateAuthTypes(authMode: AuthMode = 'legacy'): string {
         const project = new Project({ useInMemoryFileSystem: true })
         const sf = project.createSourceFile('auth-types.ts')
+
+        // Present only when the backend returns refresh tokens in the body (sessions.httpOnly: false)
+        const refreshTokenProp = {
+            name: 'refreshToken',
+            type: 'string',
+            hasQuestionToken: true,
+        }
 
         sf.addStatements('// Auth API types for users-permissions plugin')
 
@@ -136,6 +144,7 @@ export class AuthApiGenerator {
             properties: [
                 { name: 'jwt', type: 'string' },
                 { name: 'user', type: 'User' },
+                ...(authMode === 'refresh' ? [refreshTokenProp] : []),
             ],
         })
 
@@ -171,6 +180,7 @@ export class AuthApiGenerator {
             properties: [
                 { name: 'jwt', type: 'string' },
                 { name: 'user', type: 'User' },
+                ...(authMode === 'refresh' ? [refreshTokenProp] : []),
             ],
         })
 
@@ -199,21 +209,30 @@ export class AuthApiGenerator {
     generateAuthApiClass(
         authRoutes: ParsedRoute[] = [],
         userRoutes: ParsedRoute[] = [],
+        authMode: AuthMode = 'legacy',
     ): string {
         // No routes discovered → fall back to the standard users-permissions
         // routes so the same builder still produces a complete AuthAPI.
         const usingDefaults = authRoutes.length === 0 && userRoutes.length === 0
-        const effectiveAuthRoutes = usingDefaults
+        let effectiveAuthRoutes = usingDefaults
             ? DEFAULT_AUTH_ROUTES
             : authRoutes
         const effectiveUserRoutes = usingDefaults
             ? DEFAULT_USER_ROUTES
             : userRoutes
 
+        // Refresh-mode backends register these as regular routes — the typed implementations must win
+        if (authMode === 'refresh') {
+            effectiveAuthRoutes = effectiveAuthRoutes.filter(
+                r => !['refresh', 'logout'].includes(this.methodNameFor(r)),
+            )
+        }
+
         return this.buildAuthApiClass(
             effectiveAuthRoutes,
             effectiveUserRoutes,
             usingDefaults,
+            authMode,
         )
     }
 
@@ -221,6 +240,7 @@ export class AuthApiGenerator {
         authRoutes: ParsedRoute[],
         userRoutes: ParsedRoute[],
         usingDefaults: boolean,
+        authMode: AuthMode,
     ): string {
         const authMethods = authRoutes
             .map(route => this.generateAuthMethod(route))
@@ -260,7 +280,7 @@ ${authMethods}
 
 ${userMethods}
 
-${this.generateClientSideHelpers(emitted)}
+${this.generateClientSideHelpers(emitted, authMode)}
 }`
     }
 
@@ -323,8 +343,14 @@ ${this.generateClientSideHelpers(emitted)}
             route.method === 'PUT' ||
             route.method === 'PATCH'
 
+        // AuthResponse methods feed the session store so Bearer flows right after login
+        const requestExpr = (requestCall: string): string =>
+            returnType === 'AuthResponse'
+                ? `    return this._captureSession(await ${requestCall.trimStart()})`
+                : `    return ${requestCall.trimStart()}`
+
         const bodyBlock = hasBody
-            ? `    return this.request<${returnType}>(
+            ? requestExpr(`this.request<${returnType}>(
       url,
       {
         method: '${route.method}',
@@ -332,13 +358,13 @@ ${this.generateClientSideHelpers(emitted)}
       },
       nextOptions,
       'Strapi Auth'
-    )`
-            : `    return this.request<${returnType}>(
+    )`)
+            : requestExpr(`this.request<${returnType}>(
       url,
       ${route.method !== 'GET' ? `{ method: '${route.method}' }` : '{}'},
       nextOptions,
       'Strapi Auth'
-    )`
+    )`)
 
         return `  /**
    * ${route.method} ${route.path}
@@ -461,7 +487,7 @@ ${bodyBlock}
       path += search.startsWith("?") ? search : \`?\${search}\`
     }
     const url = \`\${this.config.baseURL}\${path}\`
-    return this.request<AuthResponse>(url, {}, nextOptions, "Strapi Auth")
+    return this._captureSession(await this.request<AuthResponse>(url, {}, nextOptions, "Strapi Auth"))
   }`
     }
 
@@ -473,12 +499,12 @@ ${bodyBlock}
    */
   async confirmEmail(confirmationToken: string, nextOptions?: NextOptions): Promise<EmailConfirmationResponse> {
     const url = \`\${this.config.baseURL}/api/auth/email-confirmation?confirmation=\${confirmationToken}\`
-    return this.request<EmailConfirmationResponse>(
+    return this._captureSession(await this.request<EmailConfirmationResponse>(
       url,
       {},
       nextOptions,
       'Strapi Auth'
-    )
+    ))
   }`
     }
 
@@ -497,13 +523,65 @@ ${bodyBlock}
   }`
     }
 
-    private generateClientSideHelpers(emitted: Set<string>): string {
+    private generateClientSideHelpers(
+        emitted: Set<string>,
+        authMode: AuthMode,
+    ): string {
         const clearToken = `  /**
-   * Clear the stored auth token. Client-side only — does not call the server.
+   * Clear the stored auth token${authMode === 'refresh' ? ' and the in-memory session' : ''}. Client-side only — does not call the server.${
+       authMode === 'refresh'
+           ? '\n   * Also parks the automatic refresh (a signed-out client must not\n   * silently resurrect the session from the cookie) until the next\n   * login or explicit refresh().'
+           : ''
+   }
    */
   async clearToken(): Promise<void> {
     this.config.token = undefined
+    const session = getAuthSession(this.config)
+    session.accessToken = undefined
+    session.refreshToken = undefined
+    session.dead = true
   }`
+
+        if (authMode === 'refresh') {
+            const refresh = `  /**
+   * Rotate the refresh token and obtain a new access token — call once on
+   * app startup to bootstrap the session (e.g. after a page reload).
+   * Concurrent calls share a single in-flight request.
+   * Always attempts the request: unlike the automatic 401 handling it goes
+   * through the dead-session latch (and lifts it on success), so use it to
+   * resume a session started elsewhere, e.g. a login in another tab.
+   * @returns false when there is no live session to resume.
+   */
+  async refresh(): Promise<boolean> {
+    return this._refreshSession()
+  }`
+
+            const logout = `  /**
+   * POST /api/auth/logout — revoke the server-side session, then clear the
+   * in-memory tokens. Best-effort: local state is cleared even when the
+   * server call fails (e.g. the session is already dead).
+   */
+  async logout(): Promise<void> {
+    const session = getAuthSession(this.config)
+    try {
+      await this.request<unknown>(
+        \`\${this.config.baseURL}/api/auth/logout\`,
+        {
+          method: 'POST',
+          ...(session.refreshToken && { body: JSON.stringify({ refreshToken: session.refreshToken }) }),
+        },
+        undefined,
+        'Strapi Auth'
+      )
+    } catch {
+      // Best-effort — local cleanup below is what matters.
+    } finally {
+      await this.clearToken()
+    }
+  }`
+
+            return `${refresh}\n\n${logout}\n\n${clearToken}`
+        }
 
         // Skip the deprecated logout alias when a real route already emits a
         // \`logout\` method (a server-backed /auth/logout should win over the

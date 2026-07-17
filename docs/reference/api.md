@@ -363,6 +363,21 @@ The exact methods available on `strapi.auth` depend on your Strapi project's aut
 `strapi.authentication` is now `strapi.auth`, and the client-side `logout()` helper is now `clearToken()`. The old names remain as `@deprecated` aliases and will be removed in a future major.
 :::
 
+### Session methods (refresh mode)
+
+When the backend runs users-permissions with `jwtManagement: 'refresh'` (Strapi 5.43+), the generated client additionally exposes:
+
+```ts
+// Rotate the refresh token and obtain a new access token.
+// Call once on app startup to bootstrap the session.
+auth.refresh(): Promise<boolean>
+
+// Revoke the server-side session, then clear the in-memory tokens.
+auth.logout(): Promise<void>
+```
+
+Access tokens from `login`/`register`/etc. are stored in memory automatically, and requests that fail with 401 are retried once after a transparent single-flight refresh. See [Authentication → Session Auth](/advanced/authentication#session-auth-refresh-tokens-strapi-5-43) for the full flow.
+
 ## QueryParams
 
 The `QueryParams` interface is used by `find`, `findWithMeta`, and `findOne`.

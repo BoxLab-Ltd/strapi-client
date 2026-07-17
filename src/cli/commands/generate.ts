@@ -161,6 +161,7 @@ export async function generate(
             endpoints: apiEndpoints,
             pluginEndpoints,
             extraTypes,
+            authMode,
             hash,
         } = await client.getSchema()
 
@@ -179,6 +180,9 @@ export async function generate(
             }
             if (extraTypes && extraTypes.length > 0) {
                 console.log(`  Extra types: ${extraTypes.length}`)
+            }
+            if (authMode === 'refresh') {
+                console.log('  Auth mode: refresh (session flow enabled)')
             }
         }
 
@@ -201,6 +205,7 @@ export async function generate(
             getGeneratorVersion(),
             format,
             options.typecheck ?? true,
+            authMode ?? 'legacy',
         )
 
         // Track generated files

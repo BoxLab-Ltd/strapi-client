@@ -100,6 +100,28 @@ describe('ClientGenerator', () => {
             expect(output).toContain('export const SCHEMA_HASH = ""')
             expect(output).toContain('export const GENERATOR_VERSION = ""')
         })
+
+        it('bakes AUTH_MODE (legacy by default, refresh when detected)', () => {
+            expect(output).toContain(
+                `export const AUTH_MODE: 'legacy' | 'refresh' = "legacy"`,
+            )
+            const refreshOut = new ClientGenerator().generate(
+                mockSchema,
+                undefined,
+                undefined,
+                '',
+                '',
+                'refresh',
+            )
+            expect(refreshOut).toContain(
+                `export const AUTH_MODE: 'legacy' | 'refresh' = "refresh"`,
+            )
+            expect(refreshOut).toContain('async refresh(): Promise<boolean>')
+        })
+
+        it('exposes the authMode override on StrapiClientConfig', () => {
+            expect(output).toContain(`authMode?: 'legacy' | 'refresh'`)
+        })
     })
 
     describe('Imports', () => {

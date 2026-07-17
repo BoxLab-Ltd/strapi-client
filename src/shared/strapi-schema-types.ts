@@ -72,6 +72,13 @@ export interface ExtractedSchema {
 }
 
 /**
+ * users-permissions JWT mode detected on the backend at generation time.
+ * 'refresh' = Strapi 5.43+ `jwtManagement: 'refresh'` (short access JWT +
+ * rotating refresh token); 'legacy' = everything else.
+ */
+export type AuthMode = 'legacy' | 'refresh'
+
+/**
  * Full schema response from the plugin API
  */
 export interface SchemaResponse {
@@ -79,6 +86,8 @@ export interface SchemaResponse {
     endpoints: ParsedEndpoint[]
     pluginEndpoints?: ParsedEndpoint[]
     extraTypes: ExtraControllerType[]
+    /** Absent on plugins older than 2.1.0 — treat as 'legacy'. */
+    authMode?: AuthMode
     hash: string
     generatedAt: string
 }

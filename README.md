@@ -65,6 +65,7 @@ articles[0].category.name // fully typed
 - Typed API client — `find`, `findOne`, `create`, `update`, `delete`
 - Built-in upload plugin support — `client.upload.upload/find/findOne/destroy`
 - Typed errors with `isStrapiErrorOf` for discriminated narrowing
+- Session auth (Strapi 5.43+ `jwtManagement: 'refresh'`) — auto-detected, with transparent token refresh
 - Automatic type inference for `populate` — no manual casting
 - Nested populate with unlimited depth
 - Separate Input types for create/update (relations as IDs)
@@ -74,6 +75,24 @@ articles[0].category.name // fully typed
 - Next.js integration (`withStrapiTypes`, cache, revalidate, tags)
 - Schema hashing — skips regeneration when nothing changed
 - Framework-agnostic — works with any TypeScript project
+
+## Session auth (Strapi 5.43+)
+
+When your backend runs users-permissions with `jwtManagement: 'refresh'` (short-lived access JWT + rotating refresh token in an httpOnly cookie), the generator detects it automatically and bakes the session flow into the client — no config needed:
+
+```typescript
+const strapi = new StrapiClient({
+    baseURL: 'http://localhost:1337',
+    credentials: 'include', // let the refresh cookie travel
+})
+
+await strapi.auth.login({ identifier, password }) // access token kept in memory
+await strapi.auth.refresh() // bootstrap the session on page load
+await strapi.articles.find() // expired token? refreshed & retried transparently
+await strapi.auth.logout() // revoke the session server-side
+```
+
+On a 401 the client performs a single-flight `POST /api/auth/refresh` and retries the request once; a dead session surfaces the original 401. The flow is browser-only (server-side code keeps using API tokens) and steps aside whenever you manage the `Authorization` header yourself. Legacy backends are untouched — the generated client behaves exactly as before. See [Authentication](https://boxlab-ltd.github.io/strapi-typed-client/advanced/authentication) for details.
 
 ## Requirements
 

@@ -581,3 +581,82 @@ describe('generateAuthApiClass — logout dedup (route vs client-side helper)', 
         expect(result).toContain('return this.clearToken()')
     })
 })
+
+describe('generateAuthTypes — refresh mode', () => {
+    it('adds optional refreshToken to AuthResponse and EmailConfirmationResponse', () => {
+        const result = generator.generateAuthTypes('refresh')
+        const authResponse = result.slice(
+            result.indexOf('export interface AuthResponse {'),
+            result.indexOf('export interface ForgotPasswordData {'),
+        )
+        expect(authResponse).toContain('refreshToken?: string')
+        const emailConfirmation = result.slice(
+            result.indexOf('export interface EmailConfirmationResponse {'),
+            result.indexOf('export interface ForgotPasswordResponse {'),
+        )
+        expect(emailConfirmation).toContain('refreshToken?: string')
+    })
+
+    it('legacy mode does not mention refreshToken', () => {
+        expect(generator.generateAuthTypes()).not.toContain('refreshToken')
+    })
+})
+
+describe('generateAuthApiClass — refresh mode', () => {
+    const result = generator.generateAuthApiClass([], [], 'refresh')
+
+    it('emits typed refresh(): Promise<boolean> delegating to the shared single-flight', () => {
+        expect(result).toContain('async refresh(): Promise<boolean> {')
+        expect(result).toContain('return this._refreshSession()')
+    })
+
+    it('emits a real logout posting to /api/auth/logout and clearing local state', () => {
+        expect(result).toContain('async logout(): Promise<void> {')
+        expect(result).toContain('/api/auth/logout')
+        expect(result).toContain('await this.clearToken()')
+        expect(result).not.toContain('@deprecated Use `clearToken()`')
+    })
+
+    it('filters discovered refresh/logout routes so the typed versions win', () => {
+        const authRoutes: ParsedRoute[] = [
+            {
+                method: 'POST',
+                path: '/auth/refresh',
+                handler: 'plugin::users-permissions.auth.refresh',
+                controller: 'auth',
+                action: 'refresh',
+                params: [],
+            },
+            {
+                method: 'POST',
+                path: '/auth/logout',
+                handler: 'plugin::users-permissions.auth.logout',
+                controller: 'auth',
+                action: 'logout',
+                params: [],
+            },
+        ]
+        const generated = generator.generateAuthApiClass(
+            authRoutes,
+            [],
+            'refresh',
+        )
+        expect((generated.match(/async refresh\(/g) || []).length).toBe(1)
+        expect((generated.match(/async logout\(/g) || []).length).toBe(1)
+        expect(generated).toContain('async refresh(): Promise<boolean> {')
+        // the generic any-typed route method must not survive
+        expect(generated).not.toContain('async refresh(data?: any')
+    })
+
+    it('login captures the session tokens', () => {
+        expect(result).toContain(
+            'return this._captureSession(await this.request<AuthResponse>(',
+        )
+    })
+
+    it('legacy mode emits no refresh() and keeps the deprecated logout alias', () => {
+        const legacy = generator.generateAuthApiClass()
+        expect(legacy).not.toContain('async refresh(')
+        expect(legacy).toContain('@deprecated Use `clearToken()`')
+    })
+})

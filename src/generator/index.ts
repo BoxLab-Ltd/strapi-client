@@ -10,6 +10,7 @@ import type {
     ParsedEndpoint,
     ExtraControllerType,
 } from '../shared/endpoint-types.js'
+import type { AuthMode } from '../shared/strapi-schema-types.js'
 
 function stripLocalJsExtensions(source: string): string {
     return source.replace(
@@ -39,6 +40,7 @@ export class Generator {
         generatorVersion: string = '',
         format: 'js' | 'ts' = 'js',
         typecheck: boolean = true,
+        authMode: AuthMode = 'legacy',
     ): Promise<void> {
         // Generate all source contents
         const typesContent = this.typesGenerator.generate(schema)
@@ -48,6 +50,7 @@ export class Generator {
             extraTypes,
             schemaHash,
             generatorVersion,
+            authMode,
         )
         const indexContent = this.indexGenerator.generate()
 

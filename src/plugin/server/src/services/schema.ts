@@ -10,6 +10,7 @@ import type {
     ExtraControllerType,
 } from '../../../../shared/endpoint-types.js'
 import type {
+    AuthMode,
     StrapiAttribute,
     StrapiContentType,
     StrapiComponent,
@@ -120,6 +121,17 @@ function extractComponent(component: any): StrapiComponent | null {
 
 export default ({ strapi }: { strapi: any }) => ({
     /**
+     * Detect the users-permissions JWT mode (Strapi 5.43+ session flow).
+     * Any value other than the explicit 'refresh' opt-in means legacy.
+     */
+    getAuthMode(): AuthMode {
+        const jwtManagement = strapi.config.get(
+            'plugin::users-permissions.jwtManagement',
+        )
+        return jwtManagement === 'refresh' ? 'refresh' : 'legacy'
+    },
+
+    /**
      * Extract the complete schema from Strapi
      */
     extractSchema(): ExtractedSchema {
@@ -173,8 +185,11 @@ export default ({ strapi }: { strapi: any }) => ({
         const apiEndpoints = endpoints.filter(e => !e.pluginName)
         const pluginEndpoints = endpoints.filter(e => !!e.pluginName)
 
-        // Include ALL endpoints in hash computation for complete change detection
-        const hashData = { schema, endpoints, extraTypes }
+        const authMode = this.getAuthMode()
+
+        // Include ALL endpoints in hash computation for complete change detection;
+        // authMode too, so toggling jwtManagement on the backend regenerates the client
+        const hashData = { schema, endpoints, extraTypes, authMode }
         const hash = computeSchemaHash(hashData)
 
         return {
@@ -182,6 +197,7 @@ export default ({ strapi }: { strapi: any }) => ({
             endpoints: apiEndpoints,
             pluginEndpoints,
             extraTypes,
+            authMode,
             hash,
             generatedAt: new Date().toISOString(),
         }
@@ -209,7 +225,12 @@ export default ({ strapi }: { strapi: any }) => ({
             // Endpoints service might not be available
         }
 
-        const hashData = { schema, endpoints, extraTypes }
+        const hashData = {
+            schema,
+            endpoints,
+            extraTypes,
+            authMode: this.getAuthMode(),
+        }
         const hash = computeSchemaHash(hashData)
 
         return {

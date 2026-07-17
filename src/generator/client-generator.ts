@@ -15,6 +15,7 @@ import type {
     ParsedEndpoint,
     ExtraControllerType,
 } from '../shared/endpoint-types.js'
+import type { AuthMode } from '../shared/strapi-schema-types.js'
 import {
     convertEndpointsToRoutes,
     convertEndpointsToCustomTypes,
@@ -75,6 +76,7 @@ export class ClientGenerator {
         extraTypes?: ExtraControllerType[],
         schemaHash: string = '',
         generatorVersion: string = '',
+        authMode: AuthMode = 'legacy',
     ): string {
         const project = new Project({ useInMemoryFileSystem: true })
         const sf = project.createSourceFile('client.ts')
@@ -112,6 +114,8 @@ export class ClientGenerator {
             '// Do not edit manually',
             `export const SCHEMA_HASH = ${JSON.stringify(schemaHash)}`,
             `export const GENERATOR_VERSION = ${JSON.stringify(generatorVersion)}`,
+            // Union-typed so `config.authMode ?? AUTH_MODE` doesn't narrow to the baked literal
+            `export const AUTH_MODE: 'legacy' | 'refresh' = ${JSON.stringify(authMode)}`,
         ])
 
         // Imports
@@ -127,7 +131,7 @@ export class ClientGenerator {
         this.addUtilityTypes(sf, schema)
 
         // Auth types
-        sf.addStatements(this.authApiGenerator.generateAuthTypes())
+        sf.addStatements(this.authApiGenerator.generateAuthTypes(authMode))
 
         // CollectionAPI class (static block)
         sf.addStatements(this.generateCollectionAPI())
@@ -149,7 +153,11 @@ export class ClientGenerator {
         const authRoutes = parsedRoutes?.byController.get('auth') || []
         const userRoutes = parsedRoutes?.byController.get('user') || []
         sf.addStatements(
-            this.authApiGenerator.generateAuthApiClass(authRoutes, userRoutes),
+            this.authApiGenerator.generateAuthApiClass(
+                authRoutes,
+                userRoutes,
+                authMode,
+            ),
         )
 
         // Plugin API classes (registry-driven: upload, etc.) — filter out
@@ -437,7 +445,7 @@ import type { ${filterImports.join(', ')} } from './types.js'`
                     type: 'string',
                     hasQuestionToken: true,
                     docs: [
-                        '@deprecated Prefer `onRequest` to attach the Authorization header dynamically (e.g. token refresh, reading from storage). Still read by `request()` for now.',
+                        '@deprecated For user sessions prefer the built-in session flow (refresh mode); for other dynamic tokens use `onRequest` to attach the Authorization header. Still read by `request()` for now.',
                     ],
                 },
                 {
@@ -454,6 +462,14 @@ import type { ${filterImports.join(', ')} } from './types.js'`
                     name: 'credentials',
                     type: 'RequestCredentials',
                     hasQuestionToken: true,
+                },
+                {
+                    name: 'authMode',
+                    type: "'legacy' | 'refresh'",
+                    hasQuestionToken: true,
+                    docs: [
+                        "Override the users-permissions JWT mode baked in at generation time (see the exported AUTH_MODE const). 'refresh' enables the session flow: in-memory access token, `Authorization: Bearer` on every request, and an automatic single-flight refresh + retry on 401. Browser-only — in Node the session flow is inert (use API tokens server-side). Set `credentials: 'include'` alongside it when the refresh token lives in an httpOnly cookie.",
+                    ],
                 },
                 {
                     name: 'timeout',
@@ -476,7 +492,7 @@ import type { ${filterImports.join(', ')} } from './types.js'`
                     type: '(req: RequestConfig) => Partial<RequestConfig> | void | Promise<Partial<RequestConfig> | void>',
                     hasQuestionToken: true,
                     docs: [
-                        'Called before each request, after headers/timeout are assembled. Mutate `req` in place, or return a partial object to override individual fields (omitted fields keep their assembled value). Use it to attach a token from any async source (replaces `setToken`). If you swap the body to/from FormData you must set the Content-Type header yourself.',
+                        'Called before each request, after headers/timeout are assembled. Mutate `req` in place, or return a partial object to override individual fields (omitted fields keep their assembled value). Use it to attach a token from any async source (replaces `setToken`). If you swap the body to/from FormData you must set the Content-Type header yourself. Setting the Authorization header here takes ownership of auth for that request: the built-in session flow will not refresh/retry it. Also runs for the session flow’s own POST /api/auth/refresh.',
                     ],
                 },
                 {
@@ -756,9 +772,158 @@ export function isStrapiErrorOf<N extends keyof StrapiErrorDetailsMap>(
     }
 
     private generateBaseAPIClass(): string {
-        return `// Base API class with shared logic
+        return `// Session state for the users-permissions refresh flow. Keyed by the
+// config object — every API class of one StrapiClient shares the same config
+// reference, so the session (and its single-flight refresh) is client-wide
+// without widening the public config shape.
+interface AuthSessionState {
+  accessToken?: string
+  refreshToken?: string
+  refreshPromise?: Promise<boolean>
+  // Set when the server definitively rejected a refresh (or after an
+  // explicit clearToken/logout): the automatic refresh stays quiet until the
+  // next login or explicit auth.refresh(), instead of re-hitting the backend
+  // on every 401. Transient failures (5xx, network) never set this.
+  dead?: boolean
+}
+
+const authSessionStore = new WeakMap<StrapiClientConfig, AuthSessionState>()
+
+function getAuthSession(config: StrapiClientConfig): AuthSessionState {
+  let session = authSessionStore.get(config)
+  if (!session) {
+    session = {}
+    authSessionStore.set(config, session)
+  }
+  return session
+}
+
+// Base API class with shared logic
 class BaseAPI {
   constructor(protected config: StrapiClientConfig) {}
+
+  protected _authMode(): 'legacy' | 'refresh' {
+    return this.config.authMode ?? AUTH_MODE
+  }
+
+  /**
+   * The automatic session flow (token capture, Bearer injection, refresh on
+   * 401) is active only in refresh mode AND in a browser. In Node the whole
+   * mechanism is inert: there is no cookie jar for a cookie-based refresh,
+   * and silently storing tokens on a client instance that may be shared
+   * across requests (e.g. a Next.js module singleton) would leak one user's
+   * session into another user's requests. Server-side code should use API
+   * tokens (\`token\`) or explicit \`setToken\`.
+   */
+  protected _sessionEnabled(): boolean {
+    return (
+      this._authMode() === 'refresh' &&
+      typeof (globalThis as { window?: unknown }).window !== 'undefined'
+    )
+  }
+
+  /**
+   * Store the session tokens from an auth response ({ jwt, refreshToken? }).
+   * No-op in legacy mode and outside the browser (see _sessionEnabled).
+   */
+  protected _captureSession<T>(res: T): T {
+    if (!this._sessionEnabled()) return res
+    const auth = res as { jwt?: unknown; refreshToken?: unknown } | null | undefined
+    if (auth && typeof auth.jwt === 'string') {
+      const session = getAuthSession(this.config)
+      session.accessToken = auth.jwt
+      if (typeof auth.refreshToken === 'string') {
+        session.refreshToken = auth.refreshToken
+      }
+      // A fresh login revives the session — lift the dead-session latch.
+      session.dead = undefined
+    }
+    return res
+  }
+
+  /**
+   * Rotate the refresh token via POST /api/auth/refresh. Single-flight: all
+   * concurrent 401s share one in-flight refresh (token rotation is idempotent
+   * on the backend, this just avoids redundant requests).
+   */
+  protected _refreshSession(): Promise<boolean> {
+    const session = getAuthSession(this.config)
+    if (!session.refreshPromise) {
+      session.refreshPromise = this._performTokenRefresh(session).finally(() => {
+        session.refreshPromise = undefined
+      })
+    }
+    return session.refreshPromise
+  }
+
+  private async _performTokenRefresh(session: AuthSessionState): Promise<boolean> {
+    const fetchFn = this.config.fetch || globalThis.fetch
+    try {
+      // Raw fetch, not this.request() — a 401 here must not recurse into
+      // another refresh, and no Authorization is attached (Strapi rejects
+      // requests carrying an invalid Bearer even on public routes). The
+      // token travels in the httpOnly cookie (credentials) or, for
+      // non-httpOnly setups, in the body.
+      let url = \`\${this.config.baseURL}/api/auth/refresh\`
+      const init: RequestInit = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        ...(session.refreshToken && { body: JSON.stringify({ refreshToken: session.refreshToken }) }),
+        ...(this.config.credentials && { credentials: this.config.credentials }),
+      }
+
+      // The refresh request honours onRequest like any other request, so
+      // infrastructure headers (tenant ids, proxy keys) reach it too.
+      if (this.config.onRequest) {
+        const reqConfig: RequestConfig = {
+          url,
+          method: 'POST',
+          headers: init.headers as Record<string, string>,
+          body: init.body ?? undefined,
+        }
+        const result = await this.config.onRequest(reqConfig)
+        const eff = result ? { ...reqConfig, ...result } : reqConfig
+        url = eff.url
+        init.method = eff.method
+        init.headers = eff.headers
+        init.body = eff.body
+        if (eff.signal) init.signal = eff.signal
+      }
+
+      const response = await fetchFn(url, init)
+      if (!response.ok) {
+        // 4xx = the session is gone for good (401 dead, 403 rejected,
+        // 404 legacy backend) — drop it and latch. 5xx is transient:
+        // keep everything and let the original 401 propagate.
+        if (response.status < 500) {
+          session.accessToken = undefined
+          session.refreshToken = undefined
+          session.dead = true
+        }
+        return false
+      }
+      const data = (await response.json().catch(() => null)) as {
+        jwt?: string
+        refreshToken?: string
+      } | null
+      if (!data?.jwt) {
+        // 2xx without a jwt — broken contract, retrying won't help.
+        session.accessToken = undefined
+        session.dead = true
+        return false
+      }
+      session.accessToken = data.jwt
+      if (data.refreshToken) {
+        session.refreshToken = data.refreshToken
+      }
+      session.dead = undefined
+      return true
+    } catch {
+      // Network failure — keep the tokens (the session may still be alive)
+      // and let the original 401 propagate.
+      return false
+    }
+  }
 
   private getErrorHint(status: number): string {
     switch (status) {
@@ -774,9 +939,12 @@ class BaseAPI {
     url: string,
     options: RequestInit = {},
     nextOptions?: NextOptions,
-    errorPrefix = 'Strapi API'
+    errorPrefix = 'Strapi API',
+    _isRetry = false
   ): Promise<R> {
     const fetchFn = this.config.fetch || globalThis.fetch
+    // Kept for the post-refresh retry — \`url\` may be mutated by onRequest.
+    const originalUrl = url
 
     const headers: Record<string, string> = {
       ...options.headers as Record<string, string>,
@@ -787,7 +955,13 @@ class BaseAPI {
       headers['Content-Type'] = 'application/json'
     }
 
-    if (this.config.token) {
+    // With the session flow active the in-memory token wins over the static one.
+    const sessionToken = this._sessionEnabled()
+      ? getAuthSession(this.config).accessToken
+      : undefined
+    if (sessionToken) {
+      headers['Authorization'] = \`Bearer \${sessionToken}\`
+    } else if (this.config.token) {
       headers['Authorization'] = \`Bearer \${this.config.token}\`
     }
 
@@ -898,6 +1072,33 @@ class BaseAPI {
     }
 
     if (!response.ok) {
+      // Session flow: an expired access token answers 401 — refresh once
+      // (single-flight across concurrent requests) and retry the original
+      // request one time. Only for requests the session flow itself
+      // authorized: sent with OUR session Bearer, or anonymously (page-load
+      // bootstrap via cookie). If someone else set Authorization — a static
+      // config.token, an onRequest hook, per-request headers — the flow
+      // steps aside and the 401 propagates untouched. onError is NOT
+      // invoked for a 401 that a successful refresh absorbs.
+      const sentAuth = (fetchOptions.headers as Record<string, string>)['Authorization']
+      const sessionOwnsRequest =
+        sentAuth === undefined ||
+        (sessionToken !== undefined && sentAuth === \`Bearer \${sessionToken}\`)
+      if (
+        response.status === 401 &&
+        !_isRetry &&
+        this._sessionEnabled() &&
+        sessionOwnsRequest &&
+        // dead-session latch: don't re-hit the backend on every 401 once a
+        // refresh was definitively rejected; login or auth.refresh() lifts it
+        !getAuthSession(this.config).dead
+      ) {
+        const refreshed = await this._refreshSession()
+        if (refreshed) {
+          return this.request<R>(originalUrl, options, nextOptions, errorPrefix, true)
+        }
+      }
+
       // Detect HTML response (wrong server / reverse proxy error page)
       const contentType = response.headers.get('content-type') || ''
       let httpErr: StrapiError
@@ -1497,7 +1698,7 @@ ${standaloneInits}
     }
   }
 
-  /** @deprecated Prefer \`config.onRequest\` to attach the Authorization header dynamically (enables token refresh / reading from storage). \`setToken\` still works for now. */
+  /** @deprecated For user sessions prefer the built-in session flow (refresh mode); for other dynamic tokens use \`config.onRequest\`. \`setToken\` still works for now. */
   setToken(token: string) {
     this.config.token = token
   }

@@ -37,6 +37,81 @@ const data = await strapi.posts.find()
 
 This is useful in scenarios where the token is not available at initialization time, such as after a user authenticates.
 
+## Session Auth (Refresh Tokens, Strapi 5.43+)
+
+Strapi 5.43 introduced a session-based JWT mode for users-permissions: a short-lived access JWT (~10 minutes) plus a rotating refresh token. Enable it on the backend:
+
+```typescript
+// config/plugins.ts
+export default {
+    'users-permissions': {
+        config: {
+            jwtManagement: 'refresh',
+        },
+    },
+}
+```
+
+`strapi-typed-client` detects this mode automatically at generation time — the plugin reads `jwtManagement` from the backend config and bakes the resulting mode into the generated client as the exported `AUTH_MODE` constant. Toggling the mode on the backend changes the schema hash, so the next `generate` (or Next.js dev/build) picks it up. No client configuration is required.
+
+### What the client does in refresh mode
+
+- **Access token in memory.** Auth responses that carry a `jwt` (`login`, `register`, OAuth `callback`, `resetPassword`, `changePassword`, `confirmEmail`) store it on the client instance automatically. It is sent as `Authorization: Bearer` on every request and never touches `localStorage`.
+- **Transparent refresh on 401.** When a request fails with 401, the client performs `POST /api/auth/refresh` and retries the original request once. Concurrent 401s share a single in-flight refresh (single-flight). If the refresh fails, the session is dropped and the original 401 propagates — your `onError` hook fires as usual. The flow only touches requests it authorized itself: those sent with its own session token, or anonymous ones (the page-load bootstrap case).
+- **Dead-session latch.** Once the server definitively rejects a refresh (4xx) — or after `logout()`/`clearToken()` — the automatic refresh goes quiet instead of re-hitting the backend on every subsequent 401. A successful `login()` or an explicit `auth.refresh()` lifts the latch (call `refresh()` to resume a session started in another tab). Transient failures (5xx, network errors) never latch and never drop the tokens.
+- **Browser-only.** The entire session flow — token capture, Bearer injection, automatic refresh — is inert in Node. There is no cookie jar for a cookie-based refresh, and silently storing tokens on a client instance that may be shared across requests (e.g. a module-level singleton in Next.js) would leak one user's session into another's requests. Server-side code should keep using long-lived API tokens via `token` (or explicit `setToken`).
+- **Plays fair with `onRequest`.** If your hook sets the `Authorization` header, it owns auth for that request — the session flow will not refresh or retry it. The hook also runs for the flow's own `POST /api/auth/refresh`, so infrastructure headers (tenant ids, proxy keys) reach it; the flow never attaches `Authorization` to its refresh request itself.
+- **Typed session methods.** `auth.refresh(): Promise<boolean>` and `auth.logout(): Promise<void>` are generated with full types.
+
+### Setup
+
+The refresh token lives in an httpOnly cookie (`strapi_up_refresh`) by default, so the client must send credentials:
+
+```typescript
+const strapi = new StrapiClient({
+    baseURL: process.env.NEXT_PUBLIC_STRAPI_URL!,
+    credentials: 'include',
+})
+```
+
+Bootstrap the session once on app load — after a page reload the in-memory access token is gone, but the cookie can mint a new one:
+
+```typescript
+const isLoggedIn = await strapi.auth.refresh()
+// true  → session restored, requests are authenticated
+// false → no live session, show the login screen
+```
+
+The rest is transparent:
+
+```typescript
+await strapi.auth.login({ identifier: 'user@example.com', password: '...' })
+await strapi.articles.find() // Bearer attached; auto-refreshed when expired
+await strapi.auth.logout() // POST /api/auth/logout + clears local tokens
+```
+
+### Non-httpOnly setups
+
+With `sessions.httpOnly: false` on the backend, refresh tokens are returned in the response body instead of a cookie. The client handles this too: `AuthResponse.refreshToken` is captured in memory and sent in the refresh request body. No extra configuration is needed (and `credentials` is not required for this variant).
+
+### Overriding the detected mode
+
+`StrapiClientConfig.authMode` overrides the baked-in default per instance:
+
+```typescript
+// A refresh-mode client that should behave like a legacy one (e.g. a
+// server-side script using a long-lived API token):
+const strapi = new StrapiClient({
+    baseURL: '...',
+    token: process.env.STRAPI_TOKEN,
+    authMode: 'legacy',
+})
+```
+
+::: info
+Legacy backends are entirely unaffected: a client generated against a backend without `jwtManagement: 'refresh'` sends the same requests and headers as before — no refresh calls, no behavior change.
+:::
+
 ### Using Environment Variables
 
 A recommended pattern is to read the token from an environment variable:
