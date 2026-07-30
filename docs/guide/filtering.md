@@ -86,6 +86,47 @@ const result = await strapi.articles.find({
 Nested filters work on relations without needing to populate them. Strapi resolves the join on the server side.
 :::
 
+### Component Filtering
+
+Component fields are filtered the same way, through their nested attributes. Each component gets its own generated filter type, so nesting is typed all the way down:
+
+```ts
+const result = await strapi.events.find({
+    filters: {
+        target: {
+            startDateTime: { $gte: '2026-01-01' },
+        },
+    },
+})
+```
+
+Repeatable components use the same shape as single ones — Strapi matches the record when any element satisfies the condition:
+
+```ts
+const result = await strapi.projects.find({
+    filters: {
+        config: { key: { $eq: 'featured' } },
+    },
+})
+```
+
+::: warning
+Dynamic zones cannot be filtered. Strapi does not support filtering on polymorphic structures (dynamic zones and media fields), so no filter key is generated for them — attempting one is a type error rather than a request that silently returns the wrong rows.
+:::
+
+### Timestamp Filtering
+
+Every document carries `createdAt`, `updatedAt`, and `publishedAt`, all filterable with the date operators:
+
+```ts
+const result = await strapi.articles.find({
+    filters: {
+        publishedAt: { $notNull: true },
+        createdAt: { $gte: '2026-01-01' },
+    },
+})
+```
+
 ## Sorting
 
 Pass an array of sort strings in the format `field:direction`:

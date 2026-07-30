@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
     generateFilterUtilityTypes,
     generateEntityFilters,
+    generateComponentFilters,
     generateTypedQueryParams,
 } from '../../../src/core/generator/filters-generator'
-import { ContentType } from '../../../src/schema-types'
+import { ContentType, Component } from '../../../src/schema-types'
 
 describe('filters-generator', () => {
     describe('generateFilterUtilityTypes', () => {
@@ -84,8 +85,30 @@ describe('filters-generator', () => {
                 },
             ],
             media: [{ name: 'image', multiple: false, required: false }],
-            components: [],
-            dynamicZones: [],
+            components: [
+                {
+                    name: 'target',
+                    component: 'shared.target',
+                    componentType: 'SharedTarget',
+                    repeatable: false,
+                    required: false,
+                },
+                {
+                    name: 'slots',
+                    component: 'shared.slot',
+                    componentType: 'SharedSlot',
+                    repeatable: true,
+                    required: false,
+                },
+            ],
+            dynamicZones: [
+                {
+                    name: 'blocks',
+                    components: ['shared.target'],
+                    componentTypes: ['SharedTarget'],
+                    required: false,
+                },
+            ],
         }
 
         it('generates filter interface with correct name', () => {
@@ -136,9 +159,97 @@ describe('filters-generator', () => {
             expect(result).toContain('image?: {')
         })
 
+        it('generates component filters referencing the component filter type', () => {
+            const result = generateEntityFilters(mockContentType)
+            expect(result).toContain('target?: SharedTargetFilters')
+        })
+
+        it('gives a repeatable component the same shape as a single one', () => {
+            const result = generateEntityFilters(mockContentType)
+            expect(result).toContain('slots?: SharedSlotFilters')
+        })
+
+        it('omits dynamic zones — Strapi cannot filter polymorphic structures', () => {
+            const result = generateEntityFilters(mockContentType)
+            expect(result).not.toContain('blocks?')
+        })
+
+        it('generates timestamp filters', () => {
+            const result = generateEntityFilters(mockContentType)
+            expect(result).toContain('createdAt?: string | DateFilterOperators')
+            expect(result).toContain('updatedAt?: string | DateFilterOperators')
+            expect(result).toContain(
+                'publishedAt?: string | DateFilterOperators',
+            )
+        })
+
         it('extends LogicalOperators', () => {
             const result = generateEntityFilters(mockContentType)
             expect(result).toContain('extends LogicalOperators<ItemFilters>')
+        })
+    })
+
+    describe('generateComponentFilters', () => {
+        const mockComponent: Component = {
+            name: 'SharedTarget',
+            cleanName: 'SharedTarget',
+            category: 'shared',
+            uid: 'shared.target',
+            attributes: [
+                {
+                    name: 'startDateTime',
+                    type: { kind: 'datetime' },
+                    required: false,
+                },
+            ],
+            relations: [
+                {
+                    name: 'owner',
+                    relationType: 'manyToOne',
+                    target: 'api::item.item',
+                    targetType: 'Item',
+                    required: false,
+                },
+            ],
+            media: [],
+            components: [
+                {
+                    name: 'inner',
+                    component: 'shared.inner',
+                    componentType: 'SharedInner',
+                    repeatable: false,
+                    required: false,
+                },
+            ],
+            dynamicZones: [],
+        }
+
+        it('generates a filter interface for the component', () => {
+            const result = generateComponentFilters(mockComponent)
+            expect(result).toContain('export interface SharedTargetFilters')
+            expect(result).toContain(
+                'extends LogicalOperators<SharedTargetFilters>',
+            )
+        })
+
+        it('generates attribute filters', () => {
+            const result = generateComponentFilters(mockComponent)
+            expect(result).toContain(
+                'startDateTime?: string | DateFilterOperators',
+            )
+        })
+
+        it('nests component filters recursively', () => {
+            const result = generateComponentFilters(mockComponent)
+            expect(result).toContain('inner?: SharedInnerFilters')
+        })
+
+        // Anchored to line starts — the inline relation filter has its own nested documentId.
+        it('carries a numeric id but no documentId or timestamps', () => {
+            const result = generateComponentFilters(mockComponent)
+            expect(result).toContain('id?: number | IdFilterOperators')
+            expect(result).not.toMatch(/^\s+documentId\?/m)
+            expect(result).not.toMatch(/^\s+createdAt\?/m)
         })
     })
 

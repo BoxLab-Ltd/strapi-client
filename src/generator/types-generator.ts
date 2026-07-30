@@ -15,6 +15,7 @@ import { buildConstraintDocs } from './constraint-docs.js'
 import {
     generateFilterUtilityTypes,
     generateEntityFilters,
+    generateComponentFilters,
     generateTypedQueryParams,
 } from '../core/generator/filters-generator.js'
 
@@ -131,6 +132,11 @@ export class TypesGenerator {
 
         // Typed query params (static block)
         sf.addStatements(generateTypedQueryParams())
+
+        // Component filters
+        for (const component of schema.components) {
+            sf.addStatements(generateComponentFilters(component))
+        }
 
         // Entity-specific filters
         for (const contentType of schema.contentTypes) {

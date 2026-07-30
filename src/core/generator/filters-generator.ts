@@ -4,7 +4,12 @@
  */
 
 import { Project } from 'ts-morph'
-import { ParsedSchema, ContentType, Attribute } from '../../schema-types.js'
+import {
+    ParsedSchema,
+    ContentType,
+    Component,
+    Attribute,
+} from '../../schema-types.js'
 
 /**
  * Generate filter utility types (static block)
@@ -146,35 +151,72 @@ function getFilterTypeForAttribute(attr: Attribute): string {
 }
 
 /**
- * Build filter interface properties for a content type
+ * Build filter interface properties for a content type or a component
  */
-function buildFilterProperties(ct: ContentType) {
+function buildFilterProperties(
+    type: ContentType | Component,
+    isComponent: boolean,
+) {
+    const systemFields = isComponent
+        ? [
+              {
+                  name: 'id',
+                  type: 'number | IdFilterOperators',
+                  hasQuestionToken: true,
+              },
+          ]
+        : [
+              {
+                  name: 'id',
+                  type: 'number | IdFilterOperators',
+                  hasQuestionToken: true,
+              },
+              {
+                  name: 'documentId',
+                  type: 'string | StringFilterOperators',
+                  hasQuestionToken: true,
+              },
+              {
+                  name: 'createdAt',
+                  type: 'string | DateFilterOperators',
+                  hasQuestionToken: true,
+              },
+              {
+                  name: 'updatedAt',
+                  type: 'string | DateFilterOperators',
+                  hasQuestionToken: true,
+              },
+              {
+                  name: 'publishedAt',
+                  type: 'string | DateFilterOperators',
+                  hasQuestionToken: true,
+              },
+          ]
+
     return [
-        {
-            name: 'id',
-            type: 'number | IdFilterOperators',
-            hasQuestionToken: true,
-        },
-        {
-            name: 'documentId',
-            type: 'string | StringFilterOperators',
-            hasQuestionToken: true,
-        },
-        ...ct.attributes.map(attr => ({
+        ...systemFields,
+        ...type.attributes.map(attr => ({
             name: attr.name,
             type: getFilterTypeForAttribute(attr),
             hasQuestionToken: true,
         })),
-        ...ct.relations.map(rel => ({
+        ...type.relations.map(rel => ({
             name: rel.name,
             type: '{ id?: number | IdFilterOperators; documentId?: string | StringFilterOperators; [key: string]: any }',
             hasQuestionToken: true,
         })),
-        ...ct.media.map(media => ({
+        ...type.media.map(media => ({
             name: media.name,
             type: '{ id?: number | IdFilterOperators; [key: string]: any }',
             hasQuestionToken: true,
         })),
+        // Repeatable components share the single shape — Strapi matches on any element.
+        ...type.components.map(comp => ({
+            name: comp.name,
+            type: `${comp.componentType}Filters`,
+            hasQuestionToken: true,
+        })),
+        // No dynamic zones: Strapi cannot filter polymorphic structures.
     ]
 }
 
@@ -190,7 +232,25 @@ export function generateEntityFilters(ct: ContentType): string {
         isExported: true,
         extends: [`LogicalOperators<${ct.cleanName}Filters>`],
         docs: [`Type-safe filters for ${ct.cleanName}`],
-        properties: buildFilterProperties(ct),
+        properties: buildFilterProperties(ct, false),
+    })
+
+    return sf.getFullText()
+}
+
+/**
+ * Generate filter interface for a single component
+ */
+export function generateComponentFilters(component: Component): string {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const sf = project.createSourceFile('component-filters.ts')
+
+    sf.addInterface({
+        name: `${component.cleanName}Filters`,
+        isExported: true,
+        extends: [`LogicalOperators<${component.cleanName}Filters>`],
+        docs: [`Type-safe filters for the ${component.cleanName} component`],
+        properties: buildFilterProperties(component, true),
     })
 
     return sf.getFullText()
@@ -206,6 +266,11 @@ export function generateAllFilters(schema: ParsedSchema): string {
     // Add utility types (static block)
     sf.addStatements(generateFilterUtilityTypes())
 
+    // Generate filter interface for each component
+    for (const component of schema.components) {
+        sf.addStatements(generateComponentFilters(component))
+    }
+
     // Generate filter interface for each content type
     for (const ct of schema.contentTypes) {
         sf.addInterface({
@@ -213,7 +278,7 @@ export function generateAllFilters(schema: ParsedSchema): string {
             isExported: true,
             extends: [`LogicalOperators<${ct.cleanName}Filters>`],
             docs: [`Type-safe filters for ${ct.cleanName}`],
-            properties: buildFilterProperties(ct),
+            properties: buildFilterProperties(ct, false),
         })
     }
 

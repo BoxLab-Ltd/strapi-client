@@ -4,7 +4,11 @@ import * as os from 'os'
 import * as path from 'path'
 import * as ts from 'typescript'
 import { Generator } from '../../../src/generator/index.js'
-import type { ParsedSchema, ContentType } from '../../../src/schema-types.js'
+import type {
+    ParsedSchema,
+    ContentType,
+    Component,
+} from '../../../src/schema-types.js'
 import type { ParsedEndpoint } from '../../../src/shared/endpoint-types.js'
 import { mockSchema } from './fixtures/mock-schema.js'
 
@@ -26,6 +30,28 @@ import { mockSchema } from './fixtures/mock-schema.js'
  * (via `@ts-expect-error`, which fails the build if unused), and a custom route
  * reusing `create` is mangled (`createItem`) rather than shadowing the base.
  */
+
+// A component nesting another component — the shared fixture only has flat
+// ones, and component filters must recurse (#73).
+const projectMeta: Component = {
+    name: 'ProjectMeta',
+    cleanName: 'ProjectMeta',
+    category: 'project',
+    uid: 'project.meta',
+    attributes: [{ name: 'slug', type: { kind: 'string' }, required: false }],
+    relations: [],
+    media: [],
+    components: [
+        {
+            name: 'config',
+            component: 'project.project-config',
+            componentType: 'ProjectConfig',
+            repeatable: false,
+            required: false,
+        },
+    ],
+    dynamicZones: [],
+}
 
 // Extra content type covering shapes the shared fixture doesn't: an enum, a
 // oneToOne and a manyToMany relation, blocks/json scalars, and multi-media.
@@ -63,7 +89,15 @@ const widget: ContentType = {
         },
     ],
     media: [{ name: 'gallery', multiple: true, required: false }],
-    components: [],
+    components: [
+        {
+            name: 'details',
+            component: 'project.meta',
+            componentType: 'ProjectMeta',
+            repeatable: false,
+            required: false,
+        },
+    ],
     dynamicZones: [],
 }
 
@@ -88,7 +122,7 @@ const authSingle: ContentType = {
 
 const schema: ParsedSchema = {
     contentTypes: [...mockSchema.contentTypes, widget, authSingle],
-    components: mockSchema.components,
+    components: [...mockSchema.components, projectMeta],
 }
 
 // Custom routes that exercise: (1) reusing the `create` CRUD action on item
@@ -140,6 +174,19 @@ async function _assert() {
   // update is partial — an empty object is fine
   await client.items.update('id', {})
   await client.items.createItem()
+  // component fields are filterable, including through a nested component
+  await client.widgets.find({ filters: { details: { slug: { $eq: 'x' } } } })
+  await client.widgets.find({ filters: { details: { config: { key: { $contains: 'k' } } } } })
+  // repeatable components filter with the single-component shape
+  await client.projects.find({ filters: { config: { key: { $eq: 'k' } } } })
+  // @ts-expect-error - a component filter still type-checks its values
+  await client.widgets.find({ filters: { details: { slug: { $eq: 123 } } } })
+  // @ts-expect-error - an unknown key inside a component filter is rejected
+  await client.widgets.find({ filters: { details: { notAKey: { $eq: 'x' } } } })
+  // @ts-expect-error - dynamic zones are polymorphic; Strapi cannot filter them
+  await client.projects.find({ filters: { sections: { title: { $eq: 'x' } } } })
+  // the system timestamps Strapi adds to every document are filterable
+  await client.items.find({ filters: { publishedAt: { $notNull: true }, createdAt: { $gte: '2026-01-01' } } })
 }
 void _assert
 `

@@ -204,6 +204,9 @@ Each content type gets a typed filter interface:
 export interface ArticleFilters extends LogicalOperators<ArticleFilters> {
     id?: number | IdFilterOperators
     documentId?: string | StringFilterOperators
+    createdAt?: string | DateFilterOperators
+    updatedAt?: string | DateFilterOperators
+    publishedAt?: string | DateFilterOperators
     title?: string | StringFilterOperators
     views?: number | NumberFilterOperators
     status?: ('draft' | 'published' | 'archived') | StringFilterOperators
@@ -212,8 +215,21 @@ export interface ArticleFilters extends LogicalOperators<ArticleFilters> {
         documentId?: string | StringFilterOperators
         [key: string]: any
     }
+    seo?: SharedSeoFilters
 }
 ```
+
+Every component also gets its own filter interface, referenced by the entities that use it. Component filters carry a numeric `id` but no `documentId` or timestamps, and they nest recursively:
+
+```ts
+export interface SharedSeoFilters extends LogicalOperators<SharedSeoFilters> {
+    id?: number | IdFilterOperators
+    metaTitle?: string | StringFilterOperators
+    openGraph?: SharedOpenGraphFilters
+}
+```
+
+Dynamic zone fields get no filter key — Strapi cannot filter polymorphic structures, so the type reflects what the REST API actually accepts.
 
 Filter utility types are also generated:
 
