@@ -138,6 +138,10 @@ Found a bug or have a feature request? [Open an issue](https://github.com/BoxLab
 
 Pull requests are welcome — please open an issue first to discuss what you'd like to change.
 
+## Support
+
+The project is MIT-licensed and free to use. If it saved your team time, there are [a few ways to support it](https://boxlab-ltd.github.io/strapi-typed-client/support) — starring the repo, reporting bugs, or a donation. Teams that need priority fixes or help with integration can reach commercial support at [oss@dearonski.com](mailto:oss@dearonski.com).
+
 ## License
 
 MIT

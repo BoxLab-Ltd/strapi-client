@@ -15,6 +15,11 @@
         "type": "git",
         "url": "https://github.com/BoxLab-Ltd/strapi-typed-client"
     },
+    "homepage": "https://boxlab-ltd.github.io/strapi-typed-client/",
+    "bugs": {
+        "url": "https://github.com/BoxLab-Ltd/strapi-typed-client/issues"
+    },
+    "funding": "https://boxlab-ltd.github.io/strapi-typed-client/support",
     "scripts": {
         "build": "tsc",
         "generate": "node --import tsx src/cli/index.ts generate",

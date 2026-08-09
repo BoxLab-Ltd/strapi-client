@@ -41,6 +41,7 @@ export default defineConfig({
             { text: 'Guide', link: '/guide/getting-started' },
             { text: 'Advanced', link: '/advanced/dynamic-zones' },
             { text: 'Reference', link: '/reference/type-mapping' },
+            { text: 'Support', link: '/support' },
         ],
 
         sidebar: {
