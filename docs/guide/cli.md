@@ -104,7 +104,7 @@ Pass `--output` to point at the directory you generated into. It is required.
 Connects to the Strapi SSE stream and automatically regenerates types when the schema changes.
 
 ```bash
-npx strapi-types watch --url http://localhost:1337
+npx strapi-types watch --url http://localhost:1337 --output ./src/strapi
 ```
 
 This is useful during development. The command runs continuously and:
@@ -113,6 +113,30 @@ This is useful during development. The command runs continuously and:
 2. Receives the current schema hash on connect
 3. Regenerates types only when the hash differs from the local one
 4. Automatically reconnects if the Strapi server restarts
+
+**Options:**
+
+| Option           | Description                                                                                | Default                                          |
+| ---------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `--url`          | Strapi server URL                                                                          | `STRAPI_URL` env or `http://localhost:1337`      |
+| `--token`        | API token for authenticated access                                                         | `STRAPI_TOKEN` env var                           |
+| `--output`       | Output directory for generated files                                                       | required (your source tree, e.g. `./src/strapi`) |
+| `--silent`       | Suppress regeneration messages                                                             | `false`                                          |
+| `--format`       | Output format: `js` (compiled `.js` + `.d.ts`) or `ts` (raw `.ts`)                         | `js`                                             |
+| `--no-typecheck` | Write output even if it fails type-checking (escape hatch for strict-only false positives) | type-checking on                                 |
+
+Each regeneration goes through `generate`, so the options above behave exactly as they do there.
+
+::: warning Match `--format` to how you generated
+`watch` regenerates in whatever format you pass it, defaulting to `js`. If your committed output is `.ts`, run `watch --format ts` — otherwise each regeneration writes `.js` + `.d.ts` alongside your `.ts` sources and leaves the `.ts` files stale.
+:::
+
+**Example:**
+
+```bash
+# Keep raw .ts output in sync during development
+npx strapi-types watch --output ./src/strapi --format ts
+```
 
 ::: tip
 For Next.js projects, consider using the `withStrapiTypes` wrapper instead of running `watch` manually. See the [Next.js guide](/guide/nextjs).

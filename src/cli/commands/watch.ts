@@ -13,6 +13,7 @@ export interface WatchOptions {
     token?: string
     output?: string
     silent?: boolean
+    format?: 'js' | 'ts'
     typecheck?: boolean
 }
 
@@ -48,6 +49,7 @@ export async function watch(options: WatchOptions): Promise<void> {
             token: options.token,
             output: outputDir,
             silent: options.silent,
+            format: options.format,
             typecheck: options.typecheck,
         })
     }
@@ -79,6 +81,7 @@ export async function watch(options: WatchOptions): Promise<void> {
                         token: options.token,
                         output: outputDir,
                         silent: true,
+                        format: options.format,
                         typecheck: options.typecheck,
                     })
 
@@ -122,6 +125,19 @@ export async function watch(options: WatchOptions): Promise<void> {
 }
 
 /**
+ * Raw option shape handed over by commander. `format` arrives as a plain
+ * string, so it is validated before being narrowed into WatchOptions.
+ */
+interface WatchCliOptions {
+    url?: string
+    token?: string
+    output?: string
+    silent?: boolean
+    format?: string
+    typecheck?: boolean
+}
+
+/**
  * CLI handler for watch command
  */
 export function createWatchCommand(program: Command): void {
@@ -144,16 +160,29 @@ export function createWatchCommand(program: Command): void {
         )
         .option('-s, --silent', 'Suppress regeneration messages')
         .option(
+            '--format <js|ts>',
+            'Output format: js (compiled .js + .d.ts, default) or ts (raw .ts for monorepo/source-tree output)',
+            'js',
+        )
+        .option(
             '--no-typecheck',
             'Write regenerated types even if they fail type-checking (escape hatch for strict-only false positives)',
         )
-        .action(async (opts: WatchOptions) => {
+        .action(async (opts: WatchCliOptions) => {
+            if (opts.format && opts.format !== 'js' && opts.format !== 'ts') {
+                console.error(
+                    `Invalid --format value: ${opts.format}. Expected 'js' or 'ts'.`,
+                )
+                process.exit(1)
+            }
+
             try {
                 await watch({
                     url: opts.url,
                     token: opts.token,
                     output: opts.output,
                     silent: opts.silent,
+                    format: opts.format as 'js' | 'ts' | undefined,
                     typecheck: opts.typecheck,
                 })
             } catch (err) {
