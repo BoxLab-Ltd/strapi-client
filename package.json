@@ -22,7 +22,7 @@
     },
     "funding": "https://boxlab-ltd.github.io/strapi-typed-client/support",
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && tsc -p tsconfig.cjs.json && node scripts/build-cjs.mjs",
         "generate": "node --import tsx src/cli/index.ts generate",
         "dev": "node --import tsx src/cli/index.ts",
         "prepublishOnly": "yarn build",
@@ -52,6 +52,7 @@
         },
         "./strapi-server": {
             "types": "./dist/plugin/server/src/index.d.ts",
+            "require": "./dist/cjs/strapi-server.js",
             "import": "./strapi-server.js",
             "default": "./strapi-server.js"
         },

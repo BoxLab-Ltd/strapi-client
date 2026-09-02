@@ -1,0 +1,12 @@
+{
+    "extends": "./tsconfig.json",
+    "include": [],
+    "files": ["src/plugin/server/src/index.ts"],
+    "compilerOptions": {
+        "module": "commonjs",
+        "outDir": "./dist/cjs",
+        "declaration": false,
+        "declarationMap": false,
+        "sourceMap": false
+    }
+}
