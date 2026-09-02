@@ -93,8 +93,12 @@ See [Authentication](/advanced/authentication) for more details.
 The quickest path is the scaffolder — run it at your frontend project root:
 
 ```bash
-npx strapi-types init
+npx strapi-typed-client init
 ```
+
+::: tip
+`strapi-types` is the command, `strapi-typed-client` is the package. Both names run the CLI, but plain `npx strapi-types` only works where the package is already installed — elsewhere npx tries to fetch a package by that name and fails with `E404`. The examples below use the short name; switch to `npx strapi-typed-client …` when you are outside such a project.
+:::
 
 It asks for the Strapi URL, output directory, and format, then adds `strapi:generate` / `strapi:check` scripts to your `package.json`. With Strapi running, generate the types and a typed client into your project, and commit the result:
 

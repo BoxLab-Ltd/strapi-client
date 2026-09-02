@@ -4,7 +4,8 @@
     "type": "module",
     "description": "Type-safe Strapi v5 client with automatic TypeScript codegen and populate type inference",
     "bin": {
-        "strapi-types": "./dist/cli/index.js"
+        "strapi-types": "./dist/cli/index.js",
+        "strapi-typed-client": "./dist/cli/index.js"
     },
     "files": [
         "dist",

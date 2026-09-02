@@ -2,6 +2,10 @@
 
 The `strapi-types` CLI fetches your Strapi schema and generates TypeScript types and a typed client.
 
+::: tip Command name vs package name
+The package is `strapi-typed-client`; the command it installs is `strapi-types`. `npx strapi-types …` resolves that command only inside a project where the package is installed — anywhere else npx looks up a package named `strapi-types` on npm and fails with `E404`. `npx strapi-typed-client …` takes the same commands and flags and works either way.
+:::
+
 ## Commands
 
 ### `init`
