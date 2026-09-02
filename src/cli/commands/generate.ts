@@ -14,6 +14,10 @@ import {
     assertOutputDirForFormat,
 } from '../utils/file-writer.js'
 import { transformSchema } from '../../core/schema-transformer.js'
+import {
+    detectOutputFormat,
+    hasMixedFormatOutput,
+} from '../../shared/client-header.js'
 import { getGeneratorVersion } from '../../shared/version.js'
 
 export interface GenerateOptions {
@@ -63,12 +67,22 @@ export function isGeneratedOutputFresh(params: {
 export async function generate(
     options: GenerateOptions,
 ): Promise<GenerateResult> {
-    const format: 'js' | 'ts' = options.format ?? 'js'
     const filesWritten: string[] = []
 
     try {
         const outputDir = requireOutputDir(options.output)
+        const format: 'js' | 'ts' =
+            options.format ?? detectOutputFormat(outputDir) ?? 'js'
         assertOutputDirForFormat(outputDir, format)
+
+        if (!options.silent && hasMixedFormatOutput(outputDir)) {
+            console.log(
+                dim(
+                    `Both .ts and .js clients found in ${outputDir} — regenerating as ${format}.\n` +
+                        'Delete the other format once nothing imports it.',
+                ),
+            )
+        }
 
         // Create API client
         const client = createApiClient({
@@ -281,8 +295,7 @@ export function createGenerateCommand(program: Command): void {
         .option('-f, --force', 'Force regeneration even if schema unchanged')
         .option(
             '--format <js|ts>',
-            'Output format: js (compiled .js + .d.ts, default) or ts (raw .ts for monorepo/source-tree output)',
-            'js',
+            'Output format: js (compiled .js + .d.ts) or ts (raw .ts for monorepo/source-tree output). Defaults to the format already in --output, else js',
         )
         .option(
             '--no-typecheck',

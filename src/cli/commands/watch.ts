@@ -161,8 +161,7 @@ export function createWatchCommand(program: Command): void {
         .option('-s, --silent', 'Suppress regeneration messages')
         .option(
             '--format <js|ts>',
-            'Output format: js (compiled .js + .d.ts, default) or ts (raw .ts for monorepo/source-tree output)',
-            'js',
+            'Output format: js (compiled .js + .d.ts) or ts (raw .ts for monorepo/source-tree output). Defaults to the format already in --output, else js',
         )
         .option(
             '--no-typecheck',

@@ -11,7 +11,10 @@ import { execFileSync } from 'child_process'
 import * as fs from 'fs'
 import { createRequire } from 'module'
 import * as path from 'path'
-import { readClientHeaderConst } from '../shared/client-header.js'
+import {
+    detectOutputFormat,
+    readClientHeaderConst,
+} from '../shared/client-header.js'
 import { getGeneratorVersion } from '../shared/version.js'
 
 export interface StrapiTypesConfig {
@@ -89,7 +92,8 @@ function loading(silent: boolean, msg: string): () => void {
 
 async function startDevWatch(config: StrapiTypesConfig): Promise<void> {
     const outputDir = resolveOutputDir(config)
-    const format: 'js' | 'ts' = config.format ?? 'js'
+    const format: 'js' | 'ts' =
+        config.format ?? detectOutputFormat(outputDir) ?? 'js'
     const silent = config.silent ?? false
     const url =
         config.strapiUrl || process.env.STRAPI_URL || 'http://localhost:1337'
@@ -190,7 +194,8 @@ function runBuildGenerate(config: StrapiTypesConfig): void {
         config.strapiUrl || process.env.STRAPI_URL || 'http://localhost:1337'
     const token = config.token || process.env.STRAPI_TOKEN
     const outputDir = resolveOutputDir(config)
-    const format: 'js' | 'ts' = config.format ?? 'js'
+    const format: 'js' | 'ts' =
+        config.format ?? detectOutputFormat(outputDir) ?? 'js'
     const binPath = path.join(getPackageDir(), 'dist', 'cli', 'index.js')
 
     const args = [

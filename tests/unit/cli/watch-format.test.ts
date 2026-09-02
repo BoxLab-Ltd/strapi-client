@@ -52,7 +52,7 @@ describe('watch --format', () => {
         })
     })
 
-    it('leaves format undefined when not given, so generate defaults to js', async () => {
+    it('leaves format undefined when not given, so generate detects it', async () => {
         await watch({ output: './src/strapi' })
 
         expect(generateMock.mock.calls[0][0].format).toBeUndefined()

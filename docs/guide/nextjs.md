@@ -35,7 +35,7 @@ export default withStrapiTypes({
 | `strapiUrl` | Strapi server URL                                                                                                         | `STRAPI_URL` env or `http://localhost:1337` |
 | `token`     | API token                                                                                                                 | `STRAPI_TOKEN` env                          |
 | `silent`    | Suppress generation logs                                                                                                  | `false`                                     |
-| `format`    | `js` (compiled `.js` + `.d.ts`, default) or `ts` (raw `.ts` for bundlers/monorepos)                                       | `js`                                        |
+| `format`    | `js` (compiled `.js` + `.d.ts`) or `ts` (raw `.ts` for bundlers/monorepos)                                                | the format already in `output`, else `js`   |
 | `output`    | Output directory — must point at your source tree (e.g. `./src/strapi`). The plugin throws a clear error if it is missing | required                                    |
 
 ### Raw `.ts` output for bundlers and monorepos

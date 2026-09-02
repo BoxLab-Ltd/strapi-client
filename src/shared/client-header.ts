@@ -15,6 +15,9 @@ import * as path from 'path'
 
 const HEADER_HEAD_BYTES = 512
 
+// .ts first: it is the source in ts mode, so it also wins a tree holding both.
+const CLIENT_FILES = ['client.ts', 'client.js'] as const
+
 /**
  * Read the first N bytes of a file without loading the whole thing.
  */
@@ -49,11 +52,34 @@ export function readClientHeaderConst(
     name: string,
 ): string | null {
     const re = new RegExp(`${name}\\s*=\\s*['"]([^'"]*)['"]`)
-    for (const file of ['client.ts', 'client.js']) {
+    for (const file of CLIENT_FILES) {
         const head = readFileHead(path.join(outputDir, file), HEADER_HEAD_BYTES)
         if (!head) continue
         const match = head.match(re)
         if (match) return match[1]
     }
     return null
+}
+
+/**
+ * Infer the format from output that was already generated, so a regeneration
+ * keeps whatever the committed tree uses. Writing .js beside stale .ts sources
+ * leaves those sources winning the hash lookup above, so the mismatch repeats
+ * on every later run instead of settling. Null when nothing is generated yet.
+ */
+export function detectOutputFormat(outputDir: string): 'js' | 'ts' | null {
+    for (const file of CLIENT_FILES) {
+        if (fs.existsSync(path.join(outputDir, file))) {
+            return file.endsWith('.ts') ? 'ts' : 'js'
+        }
+    }
+    return null
+}
+
+/**
+ * True when both formats sit side by side — only a wrong-format regeneration
+ * leaves that behind, and half of those files are stale from then on.
+ */
+export function hasMixedFormatOutput(outputDir: string): boolean {
+    return CLIENT_FILES.every(file => fs.existsSync(path.join(outputDir, file)))
 }

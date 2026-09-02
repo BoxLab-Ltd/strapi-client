@@ -55,7 +55,7 @@ npx strapi-types generate --url http://localhost:1337
 | `--output`       | Output directory for generated files                                                       | required (your source tree, e.g. `./src/strapi`) |
 | `--silent`       | Suppress all console output                                                                | `false`                                          |
 | `--force`        | Regenerate even if schema has not changed                                                  | `false`                                          |
-| `--format`       | Output format: `js` (compiled `.js` + `.d.ts`) or `ts` (raw `.ts`)                         | `js`                                             |
+| `--format`       | Output format: `js` (compiled `.js` + `.d.ts`) or `ts` (raw `.ts`)                         | the format already in `--output`, else `js`      |
 | `--no-typecheck` | Write output even if it fails type-checking (escape hatch for strict-only false positives) | type-checking on                                 |
 
 **Examples:**
@@ -80,6 +80,8 @@ npx strapi-types generate --output ./src/strapi --format ts
 
 ::: tip `--format js` vs `--format ts`
 `js` (default) emits compiled `.js` + `.d.ts` — runs anywhere, including plain JavaScript projects with no build step. `ts` emits raw `.ts` for bundlers and monorepos that compile their own sources (Turborepo, Nx, pnpm workspaces); your `tsconfig.json` needs `moduleResolution: "bundler"` or `"nodenext"` so the `.js`-extension imports resolve to `.ts` source. Both are written into your source tree and committed.
+
+You pass `--format` for the first generation only: later runs follow the format already in `--output`. To switch format, pass it explicitly and delete the files of the old format — they are not removed for you.
 :::
 
 ### `check`
@@ -122,13 +124,13 @@ This is useful during development. The command runs continuously and:
 | `--token`        | API token for authenticated access                                                         | `STRAPI_TOKEN` env var                           |
 | `--output`       | Output directory for generated files                                                       | required (your source tree, e.g. `./src/strapi`) |
 | `--silent`       | Suppress regeneration messages                                                             | `false`                                          |
-| `--format`       | Output format: `js` (compiled `.js` + `.d.ts`) or `ts` (raw `.ts`)                         | `js`                                             |
+| `--format`       | Output format: `js` (compiled `.js` + `.d.ts`) or `ts` (raw `.ts`)                         | the format already in `--output`, else `js`      |
 | `--no-typecheck` | Write output even if it fails type-checking (escape hatch for strict-only false positives) | type-checking on                                 |
 
 Each regeneration goes through `generate`, so the options above behave exactly as they do there.
 
-::: warning Match `--format` to how you generated
-`watch` regenerates in whatever format you pass it, defaulting to `js`. If your committed output is `.ts`, run `watch --format ts` — otherwise each regeneration writes `.js` + `.d.ts` alongside your `.ts` sources and leaves the `.ts` files stale.
+::: tip `--format` follows your committed output
+`watch` regenerates in the format already sitting in `--output`, so a `.ts` tree keeps producing `.ts`. Pass `--format` only to seed an empty directory or to switch format deliberately.
 :::
 
 **Example:**
