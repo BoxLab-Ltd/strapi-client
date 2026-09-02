@@ -64,6 +64,7 @@ articles[0].category.name // fully typed
 - Clean, flat TypeScript interfaces from your Strapi schema
 - Typed API client — `find`, `findOne`, `create`, `update`, `delete`
 - Built-in upload plugin support — `client.upload.upload/find/findOne/destroy`
+- Built-in i18n support — `client.i18n.locales()` for the configured locales
 - Typed errors with `isStrapiErrorOf` for discriminated narrowing
 - Session auth (Strapi 5.43+ `jwtManagement: 'refresh'`) — auto-detected, with transparent token refresh
 - Automatic type inference for `populate` — no manual casting
