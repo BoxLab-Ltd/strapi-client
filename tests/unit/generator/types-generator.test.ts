@@ -228,6 +228,12 @@ describe('TypesGenerator', () => {
     // Base types
     // ================================================================
     describe('Base types', () => {
+        it('should generate I18nLocale interface', () => {
+            expect(output).toContain('export interface I18nLocale {')
+            expect(output).toContain('  isDefault: boolean')
+            expect(output).toContain('  publishedAt: string | null')
+        })
+
         it('should generate MediaFile interface', () => {
             expect(output).toContain('export interface MediaFile {')
             expect(output).toContain('  id: number')

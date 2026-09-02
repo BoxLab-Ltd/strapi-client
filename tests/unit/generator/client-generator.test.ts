@@ -909,6 +909,24 @@ describe('ClientGenerator', () => {
             )
         })
 
+        it('emits I18nAPI with a typed locales() method', () => {
+            expect(output).toContain('class I18nAPI extends BaseAPI')
+            expect(output).toContain(
+                'async locales(nextOptions?: NextOptions): Promise<I18nLocale[]>',
+            )
+            expect(output).toContain('/api/i18n/locales')
+        })
+
+        it('declares and initializes `i18n` on StrapiClient', () => {
+            const clientSection = output.slice(
+                output.indexOf('export class StrapiClient'),
+            )
+            expect(clientSection).toContain('i18n: I18nAPI')
+            expect(clientSection).toContain(
+                'this.i18n = new I18nAPI(this.config)',
+            )
+        })
+
         it('skips built-in upload registry entry when user has a custom standalone `upload` controller', () => {
             const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
@@ -927,13 +945,12 @@ describe('ClientGenerator', () => {
                 result.indexOf('export class StrapiClient'),
             )
 
-            // Our registry-driven block should be absent — the marker comment
-            // and the dedicated init block are emitted only when activePlugins
-            // is non-empty.
-            expect(clientSection).not.toContain(
-                '// Plugin APIs (registry-driven)',
-            )
-            expect(clientSection).not.toContain('// Initialize plugin APIs')
+            // Only the colliding contract drops out: `upload` is wired once,
+            // by the user's own standalone class, while the rest of the
+            // registry still reaches the client.
+            const uploadInits = clientSection.match(/new UploadAPI\(/g) ?? []
+            expect(uploadInits).toHaveLength(1)
+            expect(clientSection).toMatch(/\bi18n: I18nAPI\b/)
 
             // Warning should be emitted
             expect(warn).toHaveBeenCalledWith(

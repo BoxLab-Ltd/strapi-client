@@ -224,6 +224,21 @@ export interface MediaFile {
   updatedAt: string
 }
 
+/**
+ * A locale as returned by the i18n plugin's content API.
+ * Shape follows the response validator @strapi/i18n applies to GET /i18n/locales.
+ */
+export interface I18nLocale {
+  id: number
+  documentId: string
+  name: string
+  code: string
+  isDefault: boolean
+  createdAt: string
+  updatedAt: string
+  publishedAt: string | null
+}
+
 // Strapi Blocks Editor API Types
 // Based on: https://docs.strapi.io/dev-docs/api/document/blocks
 

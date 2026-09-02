@@ -64,4 +64,28 @@ describe('PLUGIN_REGISTRY', () => {
             expect(ep?.deprecatedAlias).toBe('destroy')
         })
     })
+
+    describe('i18n contract', () => {
+        const i18n = PLUGIN_REGISTRY.find(c => c.pluginName === 'i18n')
+
+        it('exposes a single GET /i18n/locales endpoint', () => {
+            expect(i18n?.clientProperty).toBe('i18n')
+            expect(i18n?.className).toBe('I18nAPI')
+            expect(i18n?.errorPrefix).toBe('Strapi i18n')
+            expect(i18n?.endpoints).toHaveLength(1)
+
+            const locales = i18n?.endpoints[0]
+            expect(locales?.methodName).toBe('locales')
+            expect(locales?.method).toBe('GET')
+            expect(locales?.path).toBe('/i18n/locales')
+            expect(locales?.responseType).toBe('I18nLocale[]')
+        })
+
+        it('takes no body or query — the route ignores both', () => {
+            const locales = i18n?.endpoints[0]
+            expect(locales?.bodyType).toBeUndefined()
+            expect(locales?.queryType).toBeUndefined()
+            expect(locales?.paramTypes).toBeUndefined()
+        })
+    })
 })

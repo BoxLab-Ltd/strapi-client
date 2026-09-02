@@ -115,6 +115,7 @@ export default defineConfig({
                             text: 'Media & Blocks',
                             link: '/reference/media-file',
                         },
+                        { text: 'Locales (i18n)', link: '/reference/i18n' },
                         { text: 'API Reference', link: '/reference/api' },
                     ],
                 },

@@ -100,4 +100,20 @@ export const PLUGIN_REGISTRY: PluginContract[] = [
             },
         ],
     },
+    {
+        pluginName: 'i18n',
+        clientProperty: 'i18n',
+        className: 'I18nAPI',
+        errorPrefix: 'Strapi i18n',
+        endpoints: [
+            {
+                methodName: 'locales',
+                method: 'GET',
+                path: '/i18n/locales',
+                responseType: 'I18nLocale[]',
+                description:
+                    'List the configured locales. Returns a bare array — this route answers outside the { data, meta } envelope.',
+            },
+        ],
+    },
 ]

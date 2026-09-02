@@ -94,6 +94,7 @@ export class ClientGenerator {
                 ...schema.contentTypes.map(c => c.cleanName),
                 ...schema.components.map(c => c.cleanName),
                 'MediaFile',
+                'I18nLocale',
                 ...(extraTypes?.map(t => t.typeName) ?? []),
             ])
             const customTypes = convertEndpointsToCustomTypes(
@@ -206,6 +207,9 @@ export class ClientGenerator {
 
         // Add MediaFile to imports
         imports.push('MediaFile')
+
+        // Plugin API response types that are not derived from the schema
+        imports.push('I18nLocale')
 
         // Ensure User is imported for Auth types (if not already)
         if (!imports.includes('User')) {

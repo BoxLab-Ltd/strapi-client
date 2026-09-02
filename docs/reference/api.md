@@ -538,6 +538,8 @@ await strapi.articles.find({
 The `locale` parameter is available on all content types. Strapi ignores it for content types without i18n enabled.
 :::
 
+To discover which codes your project accepts, read them from Strapi itself with [`client.i18n.locales()`](/reference/i18n).
+
 ### status
 
 Filter by publication status. Useful for preview/editor flows where you need to access draft content.
