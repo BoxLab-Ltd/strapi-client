@@ -223,6 +223,7 @@ export class Generator {
                 module: ts.ModuleKind.ES2022,
                 moduleResolution: ts.ModuleResolutionKind.Bundler,
                 strict: true,
+                noUncheckedIndexedAccess: true,
                 skipLibCheck: true,
                 noEmit: true,
             })
