@@ -228,6 +228,7 @@ describe('generated client type-checks clean without @ts-nocheck', () => {
             module: ts.ModuleKind.ESNext,
             moduleResolution: ts.ModuleResolutionKind.Bundler,
             strict: true,
+            noUncheckedIndexedAccess: true,
             skipLibCheck: true,
             noEmit: true,
         })
